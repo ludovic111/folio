@@ -2065,6 +2065,7 @@ dependencies = [
  "pulldown-cmark",
  "quick-xml 0.38.4",
  "rust_xlsxwriter",
+ "serde",
  "serde_json",
  "tempfile",
  "tiny-skia",
@@ -2078,6 +2079,8 @@ dependencies = [
  "cosmic-text",
  "folio-calc",
  "folio-core",
+ "image",
+ "tiny-skia",
 ]
 
 [[package]]

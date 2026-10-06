@@ -9,3 +9,5 @@ license.workspace = true
 folio-calc.workspace = true
 folio-core.workspace = true
 cosmic-text.workspace = true
+tiny-skia.workspace = true
+image.workspace = true
