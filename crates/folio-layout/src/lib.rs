@@ -12,19 +12,24 @@
 //!   page breaks, headers, footers, footnotes.
 //! * [`slide`]: a slide's shapes with their text laid out inside them.
 //! * [`chart`]: a chart's geometry (bars, lines, wedges, axes, labels) as primitives anyone can draw.
-//! * [`raster`]: charts and slides to PNG (tiny-skia), for exports that need pictures.
+//! * [`paint`]: what to draw where, on any [`Painter`] (the PNG canvas, the PDF export).
+//! * [`raster`]: charts, slides and pages to PNG (tiny-skia), for exports and thumbnails.
 
 pub mod chart;
 pub mod doc;
 pub mod fonts;
+pub mod paint;
 pub mod raster;
 pub mod slide;
 pub mod text;
 
-pub use chart::{Prim, chart_prims};
-pub use doc::{DocLayout, PageLayout, Placed, layout_doc, page_count};
+pub use chart::{Anchor, ChartStyle, Prim, chart_prims};
+pub use doc::{CellBox, DocLayout, PageLayout, Placed, layout_doc, page_count};
 pub use fonts::{Face, Fonts, bundled_fonts};
-pub use text::{Deco, DecoKind, Glyph, Line, ParaCtx, ParaLayout, layout_paragraph};
+pub use paint::Painter;
+pub use raster::{Canvas, chart_png, page_png, slide_png};
+pub use slide::{ShapeText, layout_shape_text, layout_slide_table, layout_table_box};
+pub use text::{Deco, DecoKind, Glyph, Line, Marker, ParaCtx, ParaLayout, layout_paragraph, layout_paragraph_cached, shape_label};
 
 /// A colour as RGBA bytes.
 pub type Rgba = [u8; 4];
