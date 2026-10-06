@@ -1,0 +1,9 @@
+target/
+target-*/
+.env
+.env.*
+!.env.example
+
+*.tmp
+.DS_Store
+.claude/

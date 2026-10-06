@@ -1,0 +1,11 @@
+[package]
+name = "folio-calc"
+description = "folio's formula engine: parser, evaluator, functions, number formats and the dependency graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true

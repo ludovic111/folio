@@ -1,0 +1,24 @@
+[package]
+name = "folio-io"
+description = "folio's import and export: DOCX, XLSX, PPTX, ODF, CSV, Markdown, HTML and PDF"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+folio-calc.workspace = true
+folio-core.workspace = true
+folio-layout.workspace = true
+calamine.workspace = true
+csv.workspace = true
+image.workspace = true
+krilla.workspace = true
+pulldown-cmark.workspace = true
+quick-xml.workspace = true
+rust_xlsxwriter.workspace = true
+serde_json.workspace = true
+tiny-skia.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

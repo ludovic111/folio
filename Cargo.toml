@@ -1,0 +1,71 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/ludovic111/folio"
+# The highest any dependency asks for: oo7 0.6 (GPUI's Linux keyring, through gpui_linux) needs 1.92.
+rust-version = "1.92"
+
+[workspace.dependencies]
+folio-calc = { path = "crates/folio-calc" }
+folio-core = { path = "crates/folio-core" }
+folio-layout = { path = "crates/folio-layout" }
+folio-io = { path = "crates/folio-io" }
+folio-control = { path = "crates/folio-control" }
+folio-agent = { path = "crates/folio-agent" }
+folio-cli = { path = "crates/folio-cli" }
+folio-plugin = { path = "crates/folio-plugin" }
+
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+calamine = "0.36"
+chrono = { version = "0.4", features = ["serde"] }
+cosmic-text = "0.19"
+csv = "1"
+dirs = "6"
+futures = "0.3"
+image = { version = "0.25.1", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+imbl = { version = "7", features = ["serde"] }
+krilla = "0.8"
+libloading = "0.8"
+parking_lot = "0.12"
+pulldown-cmark = { version = "0.13", default-features = false }
+quick-xml = "0.38"
+rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip"] }
+rust_xlsxwriter = "0.99"
+semver = "1"
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+tempfile = "3"
+thiserror = "2"
+tiny-skia = "0.11"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "process", "io-util", "net"] }
+tokio-util = "0.7"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+unicode-segmentation = "1"
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+wiremock = "0.6"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# Recalculation and layout run on every keystroke: even debug builds need them optimised.
+[profile.dev.package.folio-calc]
+opt-level = 2
+[profile.dev.package.folio-layout]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

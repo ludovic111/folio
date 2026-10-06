@@ -1,0 +1,11 @@
+[package]
+name = "folio-plugin"
+description = "SDK for folio plugins: spreadsheet functions and file filters written in Rust, behind a frozen C ABI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]

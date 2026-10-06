@@ -1,0 +1,11 @@
+[package]
+name = "folio-layout"
+description = "folio's layout: text shaping, line breaking and pagination for documents, slide and chart geometry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+folio-calc.workspace = true
+folio-core.workspace = true
+cosmic-text.workspace = true
