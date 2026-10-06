@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The .folio type for shared-mime-info (installed as /usr/share/mime/packages/folio.xml by the
+     .deb; scripts/bundle-linux.sh). A .folio file is a zip of JSON and media. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/vnd.lsuite.folio">
+    <comment>folio document</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="x-office-document"/>
+    <glob pattern="*.folio"/>
+  </mime-type>
+</mime-info>

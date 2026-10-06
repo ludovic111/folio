@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=folio
+GenericName=Office Suite
+Comment=Documents, sheets and slides in one file
+Exec=folio %F
+Icon=folio
+Terminal=false
+Categories=Office;WordProcessor;Spreadsheet;Presentation;
+Keywords=document;word;spreadsheet;excel;slides;presentation;powerpoint;office;
+MimeType=application/vnd.lsuite.folio;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/vnd.oasis.opendocument.text;application/vnd.oasis.opendocument.spreadsheet;application/vnd.oasis.opendocument.presentation;text/csv;text/markdown;
+StartupWMClass=folio
