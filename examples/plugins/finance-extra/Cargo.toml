@@ -1,0 +1,19 @@
+[package]
+name = "finance-extra"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# In this repository the SDK is next door; a plugin of your own uses the published tag:
+# folio-plugin = { git = "https://github.com/ludovic111/folio", tag = "v0.1.0" }
+folio-plugin = { path = "../../../crates/folio-plugin" }
+
+[profile.release]
+panic = "unwind"
+
+# Not part of folio's workspace: each plugin builds on its own.
+[workspace]

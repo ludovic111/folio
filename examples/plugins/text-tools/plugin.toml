@@ -1,0 +1,13 @@
+id = "xyz.lsuite.folio.text-tools"
+name = "Text tools"
+version = "0.1.0"
+app = "folio"
+kind = "functions"
+abi = 1
+description = "SLUG, WORDCOUNT and REGEXMATCH, and an import filter for plain text files."
+authors = ["lsuite"]
+
+[library]
+macos = "libtext_tools.dylib"
+linux = "libtext_tools.so"
+windows = "text_tools.dll"

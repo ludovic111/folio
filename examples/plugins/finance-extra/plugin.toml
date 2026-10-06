@@ -1,0 +1,13 @@
+id = "xyz.lsuite.folio.finance-extra"
+name = "Finance extra"
+version = "0.1.0"
+app = "folio"
+kind = "functions"
+abi = 1
+description = "XNPV and XIRR for cash flows on irregular dates, CAGR and GEOMEAN."
+authors = ["lsuite"]
+
+[library]
+macos = "libfinance_extra.dylib"
+linux = "libfinance_extra.so"
+windows = "finance_extra.dll"
