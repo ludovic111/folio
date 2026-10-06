@@ -40,11 +40,7 @@ fn moved(x: u32, d: i64, abs: bool, max: u32) -> Option<u32> {
 }
 
 fn move_part(p: Part, drow: i64, dcol: i64) -> Option<Part> {
-    Some(Part {
-        row: moved(p.row, drow, p.row_abs, MAX_ROWS)?,
-        col: moved(p.col, dcol, p.col_abs, MAX_COLS)?,
-        ..p
-    })
+    Some(Part { row: moved(p.row, drow, p.row_abs, MAX_ROWS)?, col: moved(p.col, dcol, p.col_abs, MAX_COLS)?, ..p })
 }
 
 /// Moves a formula as when copying it `drow` rows down and `dcol` columns right: relative
@@ -171,13 +167,15 @@ pub fn adjust_for_insert(formula: &str, own_sheet: &str, target: &str, axis: Axi
                 if rows {
                     return None;
                 }
-                shift_span(a.col, b.col, at, count, MAX_COLS).map(|(s, e)| RefBody::Cols(Part { col: s, ..a }, Part { col: e, ..b }))
+                shift_span(a.col, b.col, at, count, MAX_COLS)
+                    .map(|(s, e)| RefBody::Cols(Part { col: s, ..a }, Part { col: e, ..b }))
             }
             RefBody::Rows(a, b) => {
                 if !rows {
                     return None;
                 }
-                shift_span(a.row, b.row, at, count, MAX_ROWS).map(|(s, e)| RefBody::Rows(Part { row: s, ..a }, Part { row: e, ..b }))
+                shift_span(a.row, b.row, at, count, MAX_ROWS)
+                    .map(|(s, e)| RefBody::Rows(Part { row: s, ..a }, Part { row: e, ..b }))
             }
         };
         Some(match body {
@@ -253,7 +251,10 @@ mod tests {
 
     #[test]
     fn renaming() {
-        assert_eq!(rename_sheet("Sales!A1+sales!B2+Other!C3", "Sales", "Q1 Sales"), "'Q1 Sales'!A1+'Q1 Sales'!B2+Other!C3");
+        assert_eq!(
+            rename_sheet("Sales!A1+sales!B2+Other!C3", "Sales", "Q1 Sales"),
+            "'Q1 Sales'!A1+'Q1 Sales'!B2+Other!C3"
+        );
         assert_eq!(rename_sheet("'My sheet'!A1:B2", "my sheet", "Data"), "Data!A1:B2");
         assert_eq!(rename_sheet("A1+\"Sales!A1\"", "Sales", "X"), "A1+\"Sales!A1\"");
         assert_eq!(rename_sheet("Data!B2*2", "Data", "Raw"), "Raw!B2*2");
@@ -261,7 +262,8 @@ mod tests {
 
     #[test]
     fn listing() {
-        let refs: Vec<String> = references("=SUM(A1:B2, 'My sheet'!C3) + Data!D:D + \"E5\"").iter().map(|r| r.to_string()).collect();
+        let refs: Vec<String> =
+            references("=SUM(A1:B2, 'My sheet'!C3) + Data!D:D + \"E5\"").iter().map(|r| r.to_string()).collect();
         assert_eq!(refs, ["A1:B2", "'My sheet'!C3", "Data!D:D"]);
         assert!(references("1+2").is_empty());
     }

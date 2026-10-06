@@ -44,7 +44,10 @@ pub(crate) enum Expr {
     Bool(bool),
     Error(ErrorKind),
     /// A reference; the sheet name is lowercased for lookup.
-    Ref { sheet: Option<String>, range: Range },
+    Ref {
+        sheet: Option<String>,
+        range: Range,
+    },
     /// An argument left empty, as in `IF(A1,,1)`.
     Missing,
     /// An unknown name (defined names are not supported): `#NAME?`.
@@ -348,9 +351,7 @@ pub(crate) fn is_volatile(e: &Expr) -> bool {
     match e {
         Expr::Neg(a) | Expr::Percent(a) => is_volatile(a),
         Expr::Bin(_, a, b) | Expr::Range(a, b) => is_volatile(a) || is_volatile(b),
-        Expr::Call(func, args) => {
-            matches!(func, Func::Builtin(b) if b.volatile) || args.iter().any(is_volatile)
-        }
+        Expr::Call(func, args) => matches!(func, Func::Builtin(b) if b.volatile) || args.iter().any(is_volatile),
         _ => false,
     }
 }

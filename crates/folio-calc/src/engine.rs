@@ -325,6 +325,8 @@ impl Engine {
         self.volatile.clear();
         self.touched.clear();
         self.dirty.clear();
+        // Sheet indexes may have moved: the caller redraws everything anyway.
+        self.changed.clear();
         let mut links = Vec::new();
         for (s, sheet) in self.sheets.iter().enumerate() {
             for (addr, cell) in &sheet.cells {
@@ -495,7 +497,8 @@ impl Engine {
 
         // Formulas downstream of volatile ones go last (see the module documentation).
         let mut late = vec![false; nodes.len()];
-        let mut stack: Vec<usize> = nodes.iter().enumerate().filter(|(_, k)| self.volatile.contains(k)).map(|(i, _)| i).collect();
+        let mut stack: Vec<usize> =
+            nodes.iter().enumerate().filter(|(_, k)| self.volatile.contains(k)).map(|(i, _)| i).collect();
         while let Some(i) = stack.pop() {
             if !late[i] {
                 late[i] = true;
@@ -543,10 +546,7 @@ impl Engine {
     }
 
     fn is_formula(&self, key: Key) -> bool {
-        self.sheets
-            .get(key.sheet as usize)
-            .and_then(|s| s.cells.get(&key.addr))
-            .is_some_and(|c| c.formula.is_some())
+        self.sheets.get(key.sheet as usize).and_then(|s| s.cells.get(&key.addr)).is_some_and(|c| c.formula.is_some())
     }
 
     fn evaluate_cell(&self, key: Key, now: f64) -> Value {

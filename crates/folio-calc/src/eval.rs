@@ -326,10 +326,8 @@ impl<'a> Ctx<'a> {
     /// Ranges that start beyond the data keep their first row/column.
     pub fn clip(&self, range: Range) -> Range {
         let (max_row, max_col) = self.engine.extent();
-        let end = Addr::new(
-            range.end.row.min(max_row.max(range.start.row)),
-            range.end.col.min(max_col.max(range.start.col)),
-        );
+        let end =
+            Addr::new(range.end.row.min(max_row.max(range.start.row)), range.end.col.min(max_col.max(range.start.col)));
         Range { start: range.start, end }
     }
 

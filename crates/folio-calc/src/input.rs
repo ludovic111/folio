@@ -94,7 +94,8 @@ fn parse_numeric(t: &str) -> Option<(f64, Option<&'static str>)> {
         s = s[1..s.len() - 1].trim();
     }
     let mut currency = None;
-    for (sym, cur) in [("$", Currency::Dollar), ("€", Currency::Euro), ("£", Currency::Pound), ("¥", Currency::Yen)] {
+    for (sym, cur) in [("$", Currency::Dollar), ("€", Currency::Euro), ("£", Currency::Pound), ("¥", Currency::Yen)]
+    {
         if let Some(rest) = s.strip_prefix(sym) {
             currency = Some(cur);
             s = rest.trim_start();
@@ -198,7 +199,11 @@ fn parse_us(s: &str) -> Option<Core> {
     if int_digits.is_empty() && frac.is_empty() {
         return None;
     }
-    let mut text = format!("{}.{}", if int_digits.is_empty() { "0" } else { &int_digits }, if frac.is_empty() { "0" } else { frac });
+    let mut text = format!(
+        "{}.{}",
+        if int_digits.is_empty() { "0" } else { &int_digits },
+        if frac.is_empty() { "0" } else { frac }
+    );
     if let Some(e) = exp {
         let digits = e.strip_prefix(['+', '-']).unwrap_or(e);
         if !all_digits(digits) {

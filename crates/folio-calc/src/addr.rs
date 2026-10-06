@@ -325,7 +325,9 @@ pub(crate) fn scan_part(s: &[u8], i: usize) -> Option<(Scanned, usize)> {
 fn is_ref_end(s: &[u8], j: usize) -> bool {
     match s.get(j) {
         None => true,
-        Some(&b) => !(b.is_ascii_alphanumeric() || b == b'_' || b == b'.' || b == b'(' || b == b'!' || b == b'$' || b >= 0x80),
+        Some(&b) => {
+            !(b.is_ascii_alphanumeric() || b == b'_' || b == b'.' || b == b'(' || b == b'!' || b == b'$' || b >= 0x80)
+        }
     }
 }
 
@@ -368,8 +370,16 @@ pub(crate) fn scan_body(s: &[u8], i: usize) -> Option<(RefBody, usize)> {
 
 /// Puts two corners in top-left / bottom-right order, keeping each axis's anchors.
 pub(crate) fn order(a: Part, b: Part) -> (Part, Part) {
-    let (r0, r1) = if a.row <= b.row { ((a.row, a.row_abs), (b.row, b.row_abs)) } else { ((b.row, b.row_abs), (a.row, a.row_abs)) };
-    let (c0, c1) = if a.col <= b.col { ((a.col, a.col_abs), (b.col, b.col_abs)) } else { ((b.col, b.col_abs), (a.col, a.col_abs)) };
+    let (r0, r1) = if a.row <= b.row {
+        ((a.row, a.row_abs), (b.row, b.row_abs))
+    } else {
+        ((b.row, b.row_abs), (a.row, a.row_abs))
+    };
+    let (c0, c1) = if a.col <= b.col {
+        ((a.col, a.col_abs), (b.col, b.col_abs))
+    } else {
+        ((b.col, b.col_abs), (a.col, a.col_abs))
+    };
     (
         Part { row: r0.0, row_abs: r0.1, col: c0.0, col_abs: c0.1 },
         Part { row: r1.0, row_abs: r1.1, col: c1.0, col_abs: c1.1 },

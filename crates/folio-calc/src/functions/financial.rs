@@ -8,13 +8,45 @@ use crate::value::{ErrorKind, Value};
 const F: &str = "Financial";
 
 pub(crate) const FUNCTIONS: &[Builtin] = &[
-    def("PMT", F, "PMT(rate, nper, pv, [fv], [type])", "The payment per period of a loan or investment.", 3, 5, Imp::Scalar(pmt)),
+    def(
+        "PMT",
+        F,
+        "PMT(rate, nper, pv, [fv], [type])",
+        "The payment per period of a loan or investment.",
+        3,
+        5,
+        Imp::Scalar(pmt),
+    ),
     def("FV", F, "FV(rate, nper, pmt, [pv], [type])", "The future value of an investment.", 3, 5, Imp::Scalar(fv)),
     def("PV", F, "PV(rate, nper, pmt, [fv], [type])", "The present value of an investment.", 3, 5, Imp::Scalar(pv)),
-    def("NPV", F, "NPV(rate, value1, [value2], …)", "The net present value of future cash flows at a discount rate.", 2, MANY, Imp::Eager(npv)),
+    def(
+        "NPV",
+        F,
+        "NPV(rate, value1, [value2], …)",
+        "The net present value of future cash flows at a discount rate.",
+        2,
+        MANY,
+        Imp::Eager(npv),
+    ),
     def("IRR", F, "IRR(values, [guess])", "The internal rate of return of cash flows.", 1, 2, Imp::Eager(irr)),
-    def("RATE", F, "RATE(nper, pmt, pv, [fv], [type], [guess])", "The interest rate per period of an annuity.", 3, 6, Imp::Scalar(rate)),
-    def("NPER", F, "NPER(rate, pmt, pv, [fv], [type])", "The number of periods of an investment.", 3, 5, Imp::Scalar(nper)),
+    def(
+        "RATE",
+        F,
+        "RATE(nper, pmt, pv, [fv], [type], [guess])",
+        "The interest rate per period of an annuity.",
+        3,
+        6,
+        Imp::Scalar(rate),
+    ),
+    def(
+        "NPER",
+        F,
+        "NPER(rate, pmt, pv, [fv], [type])",
+        "The number of periods of an investment.",
+        3,
+        5,
+        Imp::Scalar(nper),
+    ),
 ];
 
 fn kind(args: &[Value], i: usize) -> R<f64> {

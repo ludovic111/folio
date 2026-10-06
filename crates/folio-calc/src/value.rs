@@ -209,8 +209,7 @@ impl<'de> Visitor<'de> for ValueVisitor {
             if key == "error" {
                 let code: String = map.next_value()?;
                 kind = Some(
-                    ErrorKind::parse(&code)
-                        .ok_or_else(|| de::Error::custom(format!("unknown error code {code}")))?,
+                    ErrorKind::parse(&code).ok_or_else(|| de::Error::custom(format!("unknown error code {code}")))?,
                 );
             } else {
                 map.next_value::<de::IgnoredAny>()?;

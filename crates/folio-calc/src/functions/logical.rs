@@ -9,18 +9,66 @@ use crate::value::{ErrorKind, Value};
 const L: &str = "Logical";
 
 pub(crate) const FUNCTIONS: &[Builtin] = &[
-    def("IF", L, "IF(condition, [value_if_true], [value_if_false])", "One value when a condition is true, another when it is false.", 1, 3, Imp::Lazy(if_)),
-    def("IFS", L, "IFS(condition1, value1, [condition2, value2], …)", "The value of the first true condition (#N/A if none).", 2, MANY, Imp::Lazy(ifs)),
-    def("IFERROR", L, "IFERROR(value, value_if_error)", "The value, or another one when it is an error.", 2, 2, Imp::Lazy(iferror)),
+    def(
+        "IF",
+        L,
+        "IF(condition, [value_if_true], [value_if_false])",
+        "One value when a condition is true, another when it is false.",
+        1,
+        3,
+        Imp::Lazy(if_),
+    ),
+    def(
+        "IFS",
+        L,
+        "IFS(condition1, value1, [condition2, value2], …)",
+        "The value of the first true condition (#N/A if none).",
+        2,
+        MANY,
+        Imp::Lazy(ifs),
+    ),
+    def(
+        "IFERROR",
+        L,
+        "IFERROR(value, value_if_error)",
+        "The value, or another one when it is an error.",
+        2,
+        2,
+        Imp::Lazy(iferror),
+    ),
     def("IFNA", L, "IFNA(value, value_if_na)", "The value, or another one when it is #N/A.", 2, 2, Imp::Lazy(ifna)),
     def("AND", L, "AND(logical1, [logical2], …)", "TRUE when every argument is true.", 1, MANY, Imp::Eager(and)),
     def("OR", L, "OR(logical1, [logical2], …)", "TRUE when any argument is true.", 1, MANY, Imp::Eager(or)),
-    def("XOR", L, "XOR(logical1, [logical2], …)", "TRUE when an odd number of arguments are true.", 1, MANY, Imp::Eager(xor)),
+    def(
+        "XOR",
+        L,
+        "XOR(logical1, [logical2], …)",
+        "TRUE when an odd number of arguments are true.",
+        1,
+        MANY,
+        Imp::Eager(xor),
+    ),
     def("NOT", L, "NOT(logical)", "Reverses TRUE and FALSE.", 1, 1, Imp::Scalar(not)),
     def("TRUE", L, "TRUE()", "The value TRUE.", 0, 0, Imp::Scalar(true_)),
     def("FALSE", L, "FALSE()", "The value FALSE.", 0, 0, Imp::Scalar(false_)),
-    def("SWITCH", L, "SWITCH(expression, value1, result1, [value2, result2], …, [default])", "The result matching the expression's value, or the default.", 3, MANY, Imp::Lazy(switch)),
-    def("CHOOSE", L, "CHOOSE(index, value1, [value2], …)", "The value at a position in the list.", 2, MANY, Imp::Lazy(choose)),
+    def(
+        "SWITCH",
+        L,
+        "SWITCH(expression, value1, result1, [value2, result2], …, [default])",
+        "The result matching the expression's value, or the default.",
+        3,
+        MANY,
+        Imp::Lazy(switch),
+    ),
+    def(
+        "CHOOSE",
+        L,
+        "CHOOSE(index, value1, [value2], …)",
+        "The value at a position in the list.",
+        2,
+        MANY,
+        Imp::Lazy(choose),
+    ),
 ];
 
 fn if_(ctx: &Ctx, args: &[Expr]) -> R<Ev> {
@@ -30,8 +78,20 @@ fn if_(ctx: &Ctx, args: &[Expr]) -> R<Ev> {
         // Element by element, as in SUM(IF(A1:A9>0, A1:A9)).
         let (t, f) = (branch(1, true), branch(2, false));
         return Ok(ctx.lift(vec![cond, t, f], &|v| match to_bool(&v[0]) {
-            Ok(true) => if v[1].is_empty() { Value::Number(0.0) } else { v[1].clone() },
-            Ok(false) => if v[2].is_empty() { Value::Number(0.0) } else { v[2].clone() },
+            Ok(true) => {
+                if v[1].is_empty() {
+                    Value::Number(0.0)
+                } else {
+                    v[1].clone()
+                }
+            }
+            Ok(false) => {
+                if v[2].is_empty() {
+                    Value::Number(0.0)
+                } else {
+                    v[2].clone()
+                }
+            }
             Err(e) => Value::Error(e),
         }));
     }
@@ -138,7 +198,9 @@ fn switch(ctx: &Ctx, args: &[Expr]) -> R<Ev> {
     for pair in rest.chunks(2) {
         if pair.len() == 2 {
             let candidate = ctx.scalar(&ctx.eval(&pair[0]));
-            if compare(&target, &candidate)?.is_eq() && std::mem::discriminant(&target) == std::mem::discriminant(&candidate) {
+            if compare(&target, &candidate)?.is_eq()
+                && std::mem::discriminant(&target) == std::mem::discriminant(&candidate)
+            {
                 return Ok(ctx.eval(&pair[1]));
             }
         } else {
