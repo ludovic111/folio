@@ -358,7 +358,8 @@ pub async fn run(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
                 if !patch.is_empty() {
                     text::format(&mut sh.text, start, end, &patch);
                 }
-                text::set_paragraphs(&mut sh.text, 0, sh.text.len().saturating_sub(1), &para);
+                let n = sh.text.len().saturating_sub(1);
+                text::set_paragraphs(&mut sh.text, 0, n, &para);
                 Ok(())
             })?;
             Ok(json!({ "shape": doc.pages[pi].deck().unwrap().slides[si].shapes[shi].id }))

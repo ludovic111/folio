@@ -431,7 +431,7 @@ impl Session {
         self.plugins.register_functions(editor.calc_mut().engine_mut());
         editor.recalc_all();
         let saved = if untitled || !path.exists() { u64::MAX } else { editor.version() };
-        *self.doc.lock() = Some(OpenDoc { editor, path: path.clone(), untitled, origin });
+        *self.doc.lock() = Some(OpenDoc { editor, path: path.clone(), untitled, origin, saved });
         if !untitled {
             crate::recent::add(&self.config_dir, &path);
         }

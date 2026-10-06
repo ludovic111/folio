@@ -243,7 +243,14 @@ async fn run_checked(session: &Arc<Session>, source: Source, spec: &'static Spec
     // A change from outside a running `file.batch` lets it finish first (briefly: past that,
     // the editor refuses the change while the batch is open rather than fold it in).
     if spec.mutates && spec.name != "file.batch" && !crate::session::in_batch_scope() {
-        let _ = tokio::time::timeout(BATCH_WAIT, session.batch_lock.lock()).await;
+        // The window never waits (it would freeze): it is told to try again.
+        if source == Source::Window {
+            if session.batch_lock.try_lock().is_err() {
+                return Err("An agent is making a batch of changes; try again in a moment.".into());
+            }
+        } else {
+            let _ = tokio::time::timeout(BATCH_WAIT, session.batch_lock.lock()).await;
+        }
     }
     crate::commands::dispatch(session, &Ctx { source, spec }, Args(params.as_object().cloned().unwrap_or_default())).await
 }
