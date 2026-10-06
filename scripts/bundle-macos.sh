@@ -3,9 +3,9 @@
 #   scripts/bundle-macos.sh [aarch64-apple-darwin|x86_64-apple-darwin]     (default: this Mac)
 # Writes to target/dist/:
 #   folio.app (in target/dist/<triple>/)   the bundle: folio, folio-cli, folio-mcp
-#   folio_<arch>.dmg                       what people download (arch: aarch64 or x64, the names
+#   folio-macos-<arch>.dmg                 what people download (arch: arm64 or x86_64, the names
 #                                          lsuite.xyz/folio/download/macos-* looks for)
-#   folio_<arch>.app.tar.gz                the same app for in-app updaters
+#   folio-macos-<arch>.app.tar.gz                the same app for in-app updaters
 #
 # Environment (all optional):
 #   APPLE_SIGNING_IDENTITY       Developer ID identity; without it the build is ad-hoc signed
@@ -19,8 +19,8 @@ cd "$(dirname "$0")/.."
 
 triple=${1:-$(rustc -vV | sed -n 's/^host: //p')}
 case "$triple" in
-  aarch64-apple-darwin) arch=aarch64 lipo_arch=arm64 ;;
-  x86_64-apple-darwin) arch=x64 lipo_arch=x86_64 ;;
+  aarch64-apple-darwin) arch=arm64 lipo_arch=arm64 ;;
+  x86_64-apple-darwin) arch=x86_64 lipo_arch=x86_64 ;;
   *) echo "usage: $0 aarch64-apple-darwin|x86_64-apple-darwin" >&2; exit 1 ;;
 esac
 version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
@@ -106,7 +106,7 @@ if [ "$can_notarize" = 1 ]; then
 fi
 
 # The download: a disk image with the app and a link to /Applications.
-dmg="$dist/folio_$arch.dmg"
+dmg="$dist/folio-macos-$arch.dmg"
 stage="$dist/$triple/dmg"
 rm -rf "$stage" "$dmg"
 mkdir -p "$stage"
@@ -124,7 +124,7 @@ if [ "$can_notarize" = 1 ]; then
 fi
 
 # The updater archive: one folio.app folder at the root, without AppleDouble files.
-archive="$dist/folio_$arch.app.tar.gz"
+archive="$dist/folio-macos-$arch.app.tar.gz"
 rm -f "$archive"
 COPYFILE_DISABLE=1 tar --no-mac-metadata -C "$dist/$triple" -czf "$archive" folio.app
 

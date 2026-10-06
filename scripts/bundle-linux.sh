@@ -3,8 +3,8 @@
 # enough glibc):
 #   scripts/bundle-linux.sh
 # Writes to target/dist/:
-#   folio_amd64.AppImage   one-file app
-#   folio_amd64.deb        Debian/Ubuntu package (/usr/lib/folio, /usr/bin/folio)
+#   folio-linux-x86_64.AppImage   one-file app
+#   folio-linux-x86_64.deb        Debian/Ubuntu package (/usr/lib/folio, /usr/bin/folio)
 # These are the names lsuite.xyz/folio/download/linux-{appimage,deb} look for.
 #
 # The binaries look for shared libraries in ../lib first (rpath, like Zed), where the libraries
@@ -79,7 +79,7 @@ if [ -z "$tool" ]; then
   curl -fsSL --retry 3 -o "$tool" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
   chmod 755 "$tool"
 fi
-appimage="$dist/folio_amd64.AppImage"
+appimage="$dist/folio-linux-x86_64.AppImage"
 rm -f "$appimage"
 # No FUSE on CI runners: let the tool unpack itself.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 VERSION="$version" "$tool" --no-appstream "$appdir" "$appimage"
@@ -116,7 +116,7 @@ command -v gtk-update-icon-cache > /dev/null && gtk-update-icon-cache -q -t /usr
 POSTINST
 cp "$pkg/DEBIAN/postinst" "$pkg/DEBIAN/postrm"
 chmod 755 "$pkg/DEBIAN/postinst" "$pkg/DEBIAN/postrm"
-deb="$dist/folio_amd64.deb"
+deb="$dist/folio-linux-x86_64.deb"
 rm -f "$deb"
 dpkg-deb --root-owner-group --build "$pkg" "$deb"
 

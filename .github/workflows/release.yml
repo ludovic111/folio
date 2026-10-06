@@ -4,8 +4,8 @@ name: Release
 # and attaches everything to a draft GitHub release. Publish the draft to ship it.
 #
 # Asset names are stable (no version) so lsuite.xyz/folio/download/<platform> always finds them:
-# folio_aarch64.dmg, folio_x64.dmg, folio_{aarch64,x64}.app.tar.gz, folio_x64-setup.exe,
-# folio_x64-portable.zip, folio_amd64.AppImage, folio_amd64.deb (plus SHA256SUMS).
+# folio-macos-arm64.dmg, folio-macos-x86_64.dmg, folio-macos-{arm64,x86_64}.app.tar.gz, folio-windows-x86_64.exe,
+# folio-windows-x86_64.zip, folio-linux-x86_64.AppImage, folio-linux-x86_64.deb (plus SHA256SUMS).
 on:
   push:
     tags: ["v*"]
@@ -100,12 +100,12 @@ jobs:
         with:
           name: folio-${{ matrix.target }}
           path: |
-            target/dist/folio_*.dmg
-            target/dist/folio_*.app.tar.gz
-            target/dist/folio_*-setup.exe
-            target/dist/folio_*-portable.zip
-            target/dist/folio_*.AppImage
-            target/dist/folio_*.deb
+            target/dist/folio-macos-*.dmg
+            target/dist/folio-macos-*.app.tar.gz
+            target/dist/folio-windows-*.exe
+            target/dist/folio-windows-*.zip
+            target/dist/folio-linux-*.AppImage
+            target/dist/folio-linux-*.deb
           if-no-files-found: error
 
   release:
@@ -135,11 +135,11 @@ jobs:
           ### Download
           Download the build for your system below.
 
-          - **macOS**: `folio_aarch64.dmg` (Apple Silicon) or `folio_x64.dmg` (Intel).
-          - **Windows**: `folio_x64-setup.exe` (installer) or `folio_x64-portable.zip`.
-          - **Linux**: `folio_amd64.AppImage` or `folio_amd64.deb`.
+          - **macOS**: `folio-macos-arm64.dmg` (Apple Silicon) or `folio-macos-x86_64.dmg` (Intel).
+          - **Windows**: `folio-windows-x86_64.exe` (installer) or `folio-windows-x86_64.zip`.
+          - **Linux**: `folio-linux-x86_64.AppImage` or `folio-linux-x86_64.deb`.
           NOTES
-          (cd dist && sha256sum folio_* > SHA256SUMS)
+          (cd dist && sha256sum folio-* > SHA256SUMS)
           ls -l dist
 
       - name: Upload to the draft release

@@ -3,8 +3,8 @@
 # makensis on PATH or in its default folder, and 7-Zip; GitHub's windows runners have both):
 #   scripts/bundle-windows.sh
 # Writes to target/dist/:
-#   folio_x64-setup.exe      per-user installer (lsuite.xyz/folio/download/windows-x86_64)
-#   folio_x64-portable.zip   the same files, to run from any folder
+#   folio-windows-x86_64.exe      per-user installer (lsuite.xyz/folio/download/windows-x86_64)
+#   folio-windows-x86_64.zip   the same files, to run from any folder
 #
 # Environment (all optional):
 #   FOLIO_SKIP_BUILD=1 reuse the binaries already in target/<triple>/release
@@ -37,13 +37,13 @@ for b in "${bins[@]}"; do cp "target/$triple/release/$b.exe" "$stage/"; done
 cp "$resources/folio.ico" "$stage/"
 cp LICENSE "$stage/LICENSE.txt"
 
-zip="$dist/folio_x64-portable.zip"
+zip="$dist/folio-windows-x86_64.zip"
 rm -f "$zip"
-(cd "$dist/$triple" && 7z a -tzip -mx=9 "../folio_x64-portable.zip" folio > /dev/null)
+(cd "$dist/$triple" && 7z a -tzip -mx=9 "../folio-windows-x86_64.zip" folio > /dev/null)
 
 makensis=$(command -v makensis || true)
 [ -n "$makensis" ] || makensis="/c/Program Files (x86)/NSIS/makensis.exe"
-setup="$dist/folio_x64-setup.exe"
+setup="$dist/folio-windows-x86_64.exe"
 rm -f "$setup"
 win() { cygpath -w "$1" 2> /dev/null || printf '%s' "$1"; }
 "$makensis" -V2 -DVERSION="$version" -DSRC="$(win "$PWD/$stage")" -DOUTFILE="$(win "$PWD/$setup")" \
