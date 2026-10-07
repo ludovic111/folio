@@ -145,7 +145,10 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-folio-plugin = { git = "https://github.com/ludovic111/folio", tag = "v0.1.0" }
+# The copy of the SDK folio carries (plugin.new points here; works offline, matches this folio):
+folio-plugin = { path = "/Users/you/.lsuite/plugins-src/folio/.sdk/folio-plugin-0.1.0" }
+# Without folio on the machine:
+# folio-plugin = { git = "https://github.com/ludovic111/folio", tag = "v0.1.0" }
 
 [profile.release]
 panic = "unwind"   # so folio can catch a panic and switch the plugin off
