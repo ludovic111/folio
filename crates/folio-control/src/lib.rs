@@ -26,3 +26,5 @@ pub use settings::Settings;
 
 #[cfg(test)]
 mod tests;
+
+pub mod update;

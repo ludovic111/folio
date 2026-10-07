@@ -1401,6 +1401,18 @@ Finish (or skip) the first-run setup with the choices made. _(changes things)_
 
 Look on GitHub Releases for a newer folio and say where to get it. _(read only)_
 
+### `app.updateStatus`
+
+Read update availability, download progress and restart state. _(read only)_
+
+### `app.installUpdate`
+
+Download, verify and install the available signed update. _(changes things · permission: app control)_
+
+### `app.restart`
+
+Restart folio to use an installed update. _(changes things · permission: app control · needs the window)_
+
 ### `app.quit`
 
 Quit folio (everything is saved). _(changes things · permission: app control · needs the window)_

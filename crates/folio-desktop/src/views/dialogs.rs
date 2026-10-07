@@ -417,10 +417,7 @@ impl Dialogs {
                     .child(
                         div().flex().flex_col().gap(px(10.)).child(caps("Updates", cx))
                             .child(switch("updates", "Look for a new version when folio starts", st.updates.check_on_start, set("updates.checkOnStart"), cx))
-                            .child(div().child(Button::new("check-now", "Check now").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run_then("app.checkUpdates", json!({}), cx, |s, v, cx| {
-                                let msg = if v["newer"] == true { format!("folio {} is out: {}", v["latest"].as_str().unwrap_or(""), v["download"].as_str().unwrap_or("")) } else if v["latest"].is_null() { "No release published yet.".into() } else { format!("folio {} is the latest.", v["current"].as_str().unwrap_or("")) };
-                                s.toast(folio_control::ToastKind::Info, msg, cx);
-                            }))))),
+                            .child(update_controls(cx)), 
                     )
                     .child(
                         div().flex().flex_col().gap(px(8.)).child(caps("Driving folio from other tools", cx))
@@ -849,4 +846,27 @@ impl Render for Dialogs {
             .when(content.is_some(), |d| d.absolute().inset_0())
             .children(content.map(|(name, w, c)| modal(name, w, c, window, cx)))
     }
+}
+
+fn update_controls(cx: &App) -> AnyElement {
+    let store = cx.store();
+    let s = store.read(cx);
+    let status = folio_control::update::status(&s.session);
+    let message = if let Some(error) = &status.error { error.clone() }
+        else if status.ready { "Update installed. Restart to use it.".into() }
+        else if let Some(p) = status.progress { format!("Downloading and verifying: {:.0}%", p * 100.) }
+        else if let Some(version) = &status.available { format!("folio {version} is available.") }
+        else if status.checked_at.is_some() { format!("folio {} is up to date.", status.current) }
+        else { format!("folio {} · signed updates", status.current) };
+    div().flex().flex_col().gap(px(10.))
+        .child(div().text_size(px(sz::SM)).child(message))
+        .child(crate::ui::switch("auto-install-updates", "Install verified updates automatically", s.settings.updates.auto_install,
+            |on, _, cx| cx.store().update(cx, |s, cx| s.run("app.setSetting", json!({"key":"updates.autoInstall","value":on}), cx)), cx))
+        .child(div().flex().flex_wrap().gap(px(8.))
+            .child(Button::new("check-updates-now", "Check now").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.checkUpdates", json!({}), cx))))
+            .when(status.can_install && status.progress.is_none() && !status.ready, |d| d.child(Button::new("install-update", "Install update").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.installUpdate", json!({}), cx)))))
+            .when(status.ready, |d| d.child(Button::new("restart-update", "Restart folio").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.restart", json!({}), cx)))))
+            .when(status.available.is_some() && !status.can_install && !status.ready, |d| d.child(Button::new("download-update", "Open downloads").small().on_click(|_, _, cx| cx.open_url("https://lsuite.xyz/folio/download")))))
+        .children(status.install_blocked.map(|message| div().text_size(px(sz::SM)).child(message)))
+        .into_any_element()
 }

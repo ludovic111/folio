@@ -82,7 +82,9 @@ pub async fn run(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
             })?;
             Ok(json!({ "onboarding": st.onboarding, "agent": { "enabled": st.agent.enabled, "provider": st.agent.provider } }))
         }
-        "app.checkUpdates" => check_updates().await,
+        "app.checkUpdates" => Ok(json!(crate::update::check(s, true).await?)),
+        "app.installUpdate" => Ok(json!(crate::update::install(s).await?)),
+        "app.updateStatus" => Ok(json!(crate::update::status(s))),
         "app.quit" => s.ui_call("app.quit", json!({})).await,
         _ => Err(super::unhandled(cx)),
     }
@@ -144,23 +146,4 @@ fn onboarding(s: &Session) -> Value {
         "agent": { "enabled": st.agent.enabled, "provider": st.agent.provider },
         "author": st.author(),
     })
-}
-
-async fn check_updates() -> CmdResult {
-    let current = env!("CARGO_PKG_VERSION");
-    if std::env::var("FOLIO_NO_UPDATE").is_ok_and(|v| !v.is_empty() && v != "0") {
-        return Ok(json!({ "current": current, "checked": false, "reason": "FOLIO_NO_UPDATE is set." }));
-    }
-    let client = reqwest::Client::builder().user_agent(format!("folio/{current}")).timeout(std::time::Duration::from_secs(10)).build().map_err(|e| e.to_string())?;
-    let r = client.get(RELEASES).send().await.map_err(|e| format!("Couldn't reach GitHub: {e}"))?;
-    if r.status().as_u16() == 404 {
-        return Ok(json!({ "current": current, "latest": null, "newer": false, "note": "No release published yet." }));
-    }
-    let v: Value = r.json().await.map_err(|e| format!("GitHub's answer wasn't readable: {e}"))?;
-    let tag = v["tag_name"].as_str().unwrap_or("").trim_start_matches('v').to_string();
-    let newer = match (semver::Version::parse(&tag), semver::Version::parse(current)) {
-        (Ok(l), Ok(c)) => l > c,
-        _ => false,
-    };
-    Ok(json!({ "current": current, "latest": tag, "newer": newer, "url": v["html_url"], "download": format!("{PAGE}/download") }))
 }

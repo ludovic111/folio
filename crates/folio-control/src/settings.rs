@@ -102,13 +102,15 @@ impl Default for Editing {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UpdateSettings {
+    /// Install verified updates in the background when enabled.
+    pub auto_install: bool,
     /// Look for a newer release on GitHub when the app starts. `FOLIO_NO_UPDATE=1` also turns it off.
     pub check_on_start: bool,
 }
 
 impl Default for UpdateSettings {
     fn default() -> Self {
-        Self { check_on_start: true }
+        Self { auto_install: false, check_on_start: true }
     }
 }
 

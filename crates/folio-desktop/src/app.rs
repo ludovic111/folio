@@ -218,6 +218,14 @@ impl Workspace {
                 window.toggle_fullscreen();
                 Ok(json!({ "presenting": true, "slide": slide + 1 }))
             }
+            "app.restart" => {
+                let session = &store.read(cx).session;
+                session.flush();
+                if session.unsaved() { return Err("Save the file before restarting.".into()); }
+                folio_control::update::restart().map_err(|e| e.to_string())?;
+                cx.quit();
+                Ok(json!({ "restarting": true }))
+            }
             "app.quit" => {
                 cx.quit();
                 Ok(json!({ "quitting": true }))

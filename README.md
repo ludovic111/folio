@@ -101,3 +101,18 @@ scripts/bundle-macos.sh                 # folio.app and a .dmg (on a Mac)
 
 MIT. Fonts: IBM Plex and Chakra Petch (SIL Open Font License). Icons: Lucide (ISC). Other apps'
 logos belong to their owners (`crates/folio-desktop/assets/logos/SOURCES.md`).
+
+## Signed releases
+
+Settings → Updates checks GitHub, verifies downloads with the embedded release key, and stages an
+update for restart. Automatic installation is opt-in. macOS bundles and Linux AppImages update in
+place with a rollback copy; Windows uses the signed installer. Managed/portable installations link
+to downloads instead.
+
+The suite's Apple credentials stay in the kimchi repository. Maintainers dispatch
+`ludovic111/kimchi`'s `suite-build.yml` with `app=folio` and the full, published commit SHA.
+Download the four platform artifacts, run `folio-release manifest <directory> --version 0.1.0
+--base-url https://github.com/ludovic111/folio/releases/download/v0.1.0 --out <directory>/latest.json`,
+and attach the verified archives, signatures, installers and manifest to the release. The separate
+manual release workflow requires its own Apple credentials and updater key; it refuses unsigned
+release builds. Keep private signing keys outside the repository.

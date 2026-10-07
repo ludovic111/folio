@@ -145,6 +145,7 @@ pub struct TextSelection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
+    Update { status: crate::update::UpdateStatus },
     /// The open file changed (any client, an undo, a plugin's results).
     DocChanged { version: u64 },
     /// Another file was opened, or the file was closed (`None`).
@@ -203,6 +204,7 @@ impl Default for SessionOptions {
 }
 
 pub struct Session {
+    pub update: Mutex<crate::update::UpdateState>,
     pub data_dir: PathBuf,
     pub config_dir: PathBuf,
     pub headless: bool,
@@ -237,6 +239,7 @@ impl Session {
             data_dir,
             config_dir,
             headless: opts.headless,
+            update: Mutex::new(crate::update::UpdateState::default()),
             secrets: opts.secrets.unwrap_or_else(|| Arc::new(MemorySecrets::default())),
             doc: Mutex::new(None),
             settings: RwLock::new(settings),

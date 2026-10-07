@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+flate2.workspace = true
+tar.workspace = true
+minisign-verify.workspace = true
 folio-calc.workspace = true
 folio-core.workspace = true
 folio-layout.workspace = true
@@ -35,5 +38,6 @@ uuid.workspace = true
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 [dev-dependencies]
+minisign.workspace = true
 tempfile.workspace = true
 wiremock.workspace = true

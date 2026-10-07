@@ -36,6 +36,9 @@ fn main() {
     };
 
     // The bridge for folio-cli and folio-mcp, and the lsuite discovery entry.
+    runtime.spawn(folio_control::update::run_in_background(session.clone()));
+    folio_control::update::finish_pending();
+
     let bridge = runtime.block_on(folio_control::bridge::Server::start(session.clone()));
     let running = match &bridge {
         Ok(server) => Some(folio_control::discovery::Running { pid: std::process::id(), control_file: Some(server.path().to_path_buf()), port: Some(server.port()), since: chrono::Utc::now() }),
@@ -83,6 +86,7 @@ fn main() {
             s.flush();
             let _ = folio_control::discovery::write(&folio_control::discovery::entry(&s.data_dir, None));
             drop(bridge.lock().take());
+            folio_control::update::apply_on_quit();
             async {}
         })
         .detach();

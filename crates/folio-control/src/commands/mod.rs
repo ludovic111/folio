@@ -342,6 +342,9 @@ pub static SPECS: &[Spec] = &[
     query("app.onboarding", "The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), the agent providers found on this computer and lsuite AI.", &[]),
     edit("app.finishOnboarding", "Finish (or skip) the first-run setup with the choices made.", &[opt("comingFrom", String, "office, google, apple, libreoffice or none."), opt("agent", Boolean, "Offer the Agent panel."), opt("provider", String, "The agent provider to use."), opt("author", String, "The name on comments and tracked changes.")]),
     query("app.checkUpdates", "Look on GitHub Releases for a newer folio and say where to get it.", &[]),
+    query("app.updateStatus", "Read update availability, download progress and restart state.", &[]),
+    edit("app.installUpdate", "Download, verify and install the available signed update.", &[]).perm(Perm::AppControl),
+    edit("app.restart", "Restart folio to use an installed update.", &[]).perm(Perm::AppControl).window(),
     edit("app.quit", "Quit folio (everything is saved).", &[]).perm(Perm::AppControl).window(),
     // ---- ui ---------------------------------------------------------------
     query("ui.state", "What the window shows: home or editor, the page, the caret or selected cells or slide, zoom, theme, open panels.", &[]),

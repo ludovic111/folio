@@ -11,6 +11,10 @@ repository = "https://github.com/ludovic111/folio"
 rust-version = "1.92"
 
 [workspace.dependencies]
+flate2 = "1"
+tar = "0.4"
+minisign = "0.10"
+minisign-verify = "0.2"
 folio-calc = { path = "crates/folio-calc" }
 folio-core = { path = "crates/folio-core" }
 folio-layout = { path = "crates/folio-layout" }

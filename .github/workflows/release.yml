@@ -7,8 +7,6 @@ name: Release
 # folio-macos-arm64.dmg, folio-macos-x86_64.dmg, folio-macos-{arm64,x86_64}.app.tar.gz, folio-windows-x86_64.exe,
 # folio-windows-x86_64.zip, folio-linux-x86_64.AppImage, folio-linux-x86_64.deb (plus SHA256SUMS).
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -30,7 +28,7 @@ jobs:
       matrix:
         include:
           - { name: macOS (Apple Silicon), os: macos-latest, target: aarch64-apple-darwin, script: bundle-macos.sh }
-          - { name: macOS (Intel), os: macos-latest, target: x86_64-apple-darwin, script: bundle-macos.sh }
+          - { name: macOS (Intel), os: macos-15-intel, target: x86_64-apple-darwin, script: bundle-macos.sh }
           - { name: Windows, os: windows-latest, target: x86_64-pc-windows-msvc, script: bundle-windows.sh }
           - { name: Linux, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, script: bundle-linux.sh }
     defaults:
@@ -87,8 +85,27 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: bash scripts/prepare-apple-signing.sh
 
+      - name: Require release credentials
+        env:
+          UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          test -n "$UPDATE_KEY"
+          if [ "$RUNNER_OS" = macOS ]; then test "$HAS_APPLE_SIGNING" = true; fi
+
       - name: Build and package
         run: bash scripts/${{ matrix.script }} ${{ runner.os == 'macOS' && matrix.target || '' }}
+
+      - name: Sign and verify updater archives
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          cargo build --release --locked -p folio-release
+          for file in target/dist/*.app.tar.gz target/dist/*.exe target/dist/*.zip target/dist/*.AppImage target/dist/*.deb; do
+            [ -f "$file" ] || continue
+            target/release/folio-release sign "$file" --version "$version"
+            target/release/folio-release verify "$file" --version "$version"
+          done
 
       - name: Remove signing keychain
         if: always() && runner.os == 'macOS'
@@ -106,6 +123,7 @@ jobs:
             target/dist/folio-windows-*.zip
             target/dist/folio-linux-*.AppImage
             target/dist/folio-linux-*.deb
+            target/dist/*.sig
           if-no-files-found: error
 
   release:
@@ -141,6 +159,10 @@ jobs:
           NOTES
           (cd dist && sha256sum folio-* > SHA256SUMS)
           ls -l dist
+
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify and create updater manifest
+        run: cargo run --release --locked -p folio-release -- manifest dist --version "$VERSION" --base-url "https://github.com/ludovic111/folio/releases/download/v$VERSION" --out dist/latest.json
 
       - name: Upload to the draft release
         env:
