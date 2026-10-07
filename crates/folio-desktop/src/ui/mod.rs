@@ -292,7 +292,7 @@ impl RenderOnce for Button {
             .when(icon_only, |d| d.w(px(h)))
             .when(!icon_only, |d| d.px(px(if self.small { 8. } else { 12. })))
             // A full-width button gives way to its row; its label then ends in an ellipsis.
-            .when(self.full, |d| d.w_full().min_w_0().overflow_hidden())
+            .when(self.full, |d| d.flex_1().w_full().min_w_0().overflow_hidden())
             .rounded(px(sz::R_SM))
             .bg(bg)
             .border_1()

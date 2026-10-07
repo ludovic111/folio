@@ -487,7 +487,7 @@ impl Editor {
                             .map(|(label, code)| {
                                 let sv = sv.clone();
                                 let code = code.to_string();
-                                let example = folio_calc::format_value(&folio_calc::Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else { 1234.5 }), Some(&code));
+                                let example = folio_calc::format_value(&folio_calc::Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else if code.contains('%') { 0.1234 } else { 1234.5 }), Some(&code));
                                 MenuItem::new(format!("{label}   {example}"), move |w, cx| {
                                     sv.update(cx, |v, cx| v.format(json!({ "number": code }), cx));
                                     crate::views::focus(&sv, w, cx);

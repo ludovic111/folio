@@ -292,7 +292,7 @@ impl Render for Inspector {
                 let presets = div().flex().flex_col().gap(px(1.)).children(folio_calc::PRESETS.iter().enumerate().map(|(i, (label, code))| {
                     let chosen = cell.format.number.as_deref() == Some(code) || (cell.format.number.is_none() && *code == "General");
                     let f = fmt(json!({ "number": code }));
-                    let example = folio_calc::format_value(&folio_calc::Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else { -1234.5 }), Some(code));
+                    let example = folio_calc::format_value(&folio_calc::Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else if code.contains('%') { 0.1234 } else { -1234.5 }), Some(code));
                     div()
                         .id(("preset", i))
                         .flex()

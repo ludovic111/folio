@@ -400,7 +400,8 @@ impl Store {
             }
             Event::SettingsChanged => {
                 self.settings = self.session.settings();
-                crate::app::apply_theme_setting(cx);
+                // Not while the store is being updated: the theme reads it.
+                cx.defer(|cx| crate::app::apply_theme_setting(cx));
                 cx.notify();
             }
             Event::AccountChanged => self.refresh_account(cx),

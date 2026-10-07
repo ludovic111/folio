@@ -52,7 +52,7 @@ pub async fn run(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
         return functions(s, &a);
     }
     if cx.spec.name == "sheet.numberFormats" {
-        return Ok(json!(folio_calc::PRESETS.iter().map(|(label, code)| json!({ "label": label, "code": code, "example": folio_calc::format_value(&Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else { -1234.5678 }), Some(code)) })).collect::<Vec<_>>()));
+        return Ok(json!(folio_calc::PRESETS.iter().map(|(label, code)| json!({ "label": label, "code": code, "example": folio_calc::format_value(&Value::Number(if code.contains('y') || code.contains('h') { 46301.5625 } else if code.contains('%') { 0.1234 } else { -1234.5678 }), Some(code)) })).collect::<Vec<_>>()));
     }
     let doc = s.doc()?;
     let pi = page_of(s, &doc, &a, Some(PageKind::Sheet))?;
