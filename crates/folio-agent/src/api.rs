@@ -1,0 +1,165 @@
+//! The tool loop for lsuite AI, the API and the local providers: ask the model, run the tools
+//! it calls through the registry, hand back the results, until it answers.
+
+mod anthropic;
+mod gemini;
+mod ollama;
+mod openai;
+
+use serde_json::Value;
+
+use crate::providers::{Quirks, Wire};
+use crate::tools::{Ran, ToolSet, spec_for_tool};
+use crate::{Conversation, Message, Part, ProviderKind, Role, Run, http};
+
+/// One tool call the model asked for. `input` is an error when its JSON didn't parse.
+pub(crate) struct Call {
+    pub id: String,
+    pub name: String,
+    pub input: Result<Value, String>,
+}
+
+/// One model response: the assistant message to keep, and the calls to run.
+pub(crate) struct Step {
+    pub parts: Vec<Part>,
+    pub calls: Vec<Call>,
+}
+
+/// A ready provider: key, model and address resolved.
+pub(crate) struct Api {
+    pub kind: ProviderKind,
+    pub wire: Wire,
+    pub http: reqwest::Client,
+    pub key: Option<String>,
+    pub model: String,
+    /// Without a trailing slash.
+    pub base: String,
+}
+
+/// The tools a wire takes at most, and whether only the short list goes (small local models).
+fn tool_budget(wire: Wire) -> (Option<usize>, bool) {
+    match wire {
+        Wire::Chat(q) => (q.tool_limit, q.compact),
+        Wire::Ollama => (None, true),
+        Wire::Gemini | Wire::Anthropic | Wire::Cli => (None, false),
+    }
+}
+
+impl Api {
+    pub(crate) async fn prepare(run: &Run) -> Result<Self, String> {
+        let c = &run.config;
+        let info = c.provider.info();
+        let http = http::client();
+        let base = c.base_url();
+        let mut key = c.api_key(&run.session);
+        let mut model = c.model();
+        let mut wire = info.wire;
+        let missing_key = || {
+            let spec = info.key.expect("a provider with a required key has a key spec");
+            let env = spec.env.first().map(|e| format!(", or set {e}")).unwrap_or_default();
+            let url = spec.url.map(|u| format!(" (get one at {u})")).unwrap_or_default();
+            format!("No {} key. Paste one in Settings › Agent{url}{env}.", info.label)
+        };
+        match c.provider {
+            ProviderKind::ClaudeCode | ProviderKind::Codex => return Err("This provider runs as a CLI.".into()),
+            ProviderKind::Lsuite => {
+                let account = folio_control::account::read().ok_or(crate::lsuite::SIGN_IN)?;
+                if c.model.trim().is_empty() {
+                    model = crate::lsuite::default_model(&folio_control::account::server(), &account.token).await;
+                }
+                key = Some(account.token);
+            }
+            // Another address is a compatible server, which may not need a key.
+            ProviderKind::OpenAi if base != info.default_base_url => wire = Wire::Chat(Quirks { tool_limit: Some(128), usage: false, ..Quirks::STANDARD }),
+            ProviderKind::OpenAiCompatible if c.base_url.trim().is_empty() => {
+                return Err("Give the server's address in Settings › Agent (for example http://127.0.0.1:8000/v1).".into());
+            }
+            ProviderKind::Ollama if model.is_empty() => {
+                let models = crate::models::ollama(&http, &base).await?;
+                model = models.iter().find(|m| m.tools == Some(true)).or(models.first()).map(|m| m.id.clone()).ok_or_else(|| {
+                    "Ollama has no models yet. Pull one that can use tools (for example `ollama pull qwen3`), then choose it in Settings › Agent.".to_string()
+                })?;
+            }
+            ProviderKind::LmStudio | ProviderKind::OpenAiCompatible if model.is_empty() => {
+                let models = crate::models::fetch(&http, c.provider, &base, key.as_deref()).await?;
+                model = models.iter().find(|m| m.loaded == Some(true) && m.tools != Some(false)).or(models.first()).map(|m| m.id.clone()).ok_or_else(|| {
+                    format!("{} has no model loaded. Load one (one that can use tools), or choose it in Settings › Agent.", info.label)
+                })?;
+            }
+            _ => {}
+        }
+        let other_server = c.provider == ProviderKind::OpenAi && base != info.default_base_url;
+        if info.key.is_some_and(|k| k.required) && key.is_none() && !other_server {
+            return Err(missing_key());
+        }
+        if model.is_empty() {
+            return Err(format!("Choose a model for {} in Settings › Agent.", info.label));
+        }
+        Ok(Self { kind: c.provider, wire, http, key, model, base })
+    }
+
+    /// How errors name the service: "OpenAI API", or the address of a custom server.
+    pub(crate) fn label(&self) -> String {
+        let info = self.kind.info();
+        if info.default_base_url.is_empty() || self.base == info.default_base_url { info.label.to_string() } else { format!("{} at {}", info.label, self.base) }
+    }
+
+    /// The request with the key as a bearer token.
+    pub(crate) fn authorized(&self, r: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        match &self.key {
+            None => r,
+            Some(k) => r.bearer_auth(k),
+        }
+    }
+
+    async fn step(&self, run: &Run, tools: &ToolSet, messages: &[Message], round: usize) -> Result<Step, String> {
+        match self.wire {
+            Wire::Anthropic => anthropic::step(self, run, tools, messages).await,
+            Wire::Chat(q) => openai::step(self, q, run, tools, messages).await,
+            Wire::Gemini => gemini::step(self, run, tools, messages, round).await,
+            Wire::Ollama => ollama::step(self, run, tools, messages, round).await,
+            Wire::Cli => Err("This provider runs as a CLI.".into()),
+        }
+    }
+}
+
+pub(crate) async fn run(run: &mut Run, prompt: String, mut conv: Conversation) -> Result<String, String> {
+    let api = Api::prepare(run).await?;
+    let (limit, compact) = tool_budget(api.wire);
+    let tools = ToolSet::new(limit, compact);
+    conv.prepare_turn();
+    conv.messages.push(Message::user(crate::context::glance(&run.session).frame(&prompt)));
+    run.set_conversation(&conv);
+    let steps = run.config.max_steps.max(1);
+    for round in 0..steps {
+        run.status(format!("Thinking with {}…", api.model));
+        run.break_text();
+        let Step { parts, calls } = api.step(run, &tools, &conv.messages, round).await?;
+        conv.messages.push(Message { role: Role::Assistant, parts });
+        run.set_conversation(&conv);
+        if calls.is_empty() {
+            return Ok(conv.messages.last().map(Message::text).unwrap_or_default());
+        }
+        let mut results = Message { role: Role::User, parts: vec![] };
+        for call in calls {
+            let label = match (call.name.as_str(), &call.input) {
+                (crate::tools::RUN_TOOL, Ok(v)) => v["command"].as_str().unwrap_or("a command").to_string(),
+                (name, _) => spec_for_tool(name).map_or(name.to_string(), |s| s.name.to_string()),
+            };
+            run.status(format!("Running {label}…"));
+            let Ran { output, is_error } = run.run_tool(&call.name, call.input).await;
+            results.parts.push(Part::ToolResult { id: call.id, name: call.name, output, is_error });
+            // Keep what ran if the person stops the run between two calls.
+            let mut partial = conv.clone();
+            partial.messages.push(results.clone());
+            run.set_conversation(&partial);
+        }
+        conv.messages.push(results);
+    }
+    Err(format!("Stopped after {steps} model steps without finishing. Finished edits stay; ask it to continue, or split the request."))
+}
+
+/// Parses streamed tool arguments; empty means no arguments.
+pub(crate) fn parse_args(raw: &str) -> Result<Value, String> {
+    if raw.trim().is_empty() { Ok(Value::Object(Default::default())) } else { serde_json::from_str(raw).map_err(|e| e.to_string()) }
+}
