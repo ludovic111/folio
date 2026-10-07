@@ -96,7 +96,7 @@ async fn main() {
     eprintln!("folio-mcp {}: {} mode{}", env!("CARGO_PKG_VERSION"), backend.mode(), backend.path().map(|p| format!(" on {}", p.display())).unwrap_or_default());
 
     let (out, writer) = protocol_out();
-    let server = Arc::new(Server { backend });
+    let server = Arc::new(Server { backend, context: Mutex::new(None) });
     // Requests in flight by id (as JSON text), to cancel them.
     let running: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>> = Arc::default();
     let mut stdin = tokio::io::BufReader::with_capacity(1 << 16, tokio::io::stdin());
@@ -264,6 +264,9 @@ fn exit_usage(message: &str) -> ! {
 
 struct Server {
     backend: Backend,
+    /// The live context last given (its `seq` and text), so a tool result carries a fresh one
+    /// only when something changed.
+    context: Mutex<Option<(u64, String)>>,
 }
 
 /// A request (with an id) or a notification.
@@ -329,29 +332,67 @@ impl Server {
                     return Err((-32602, format!("Unknown tool `{name}`: the built-in agent doesn't drive itself")));
                 }
                 let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                Ok(match self.backend.call(spec.name, arguments).await {
+                let mut reply = match self.backend.call(spec.name, arguments).await {
                     Ok(result) => {
-                        let mut text = serde_json::to_string_pretty(&result).unwrap_or_else(|_| result.to_string());
+                        // Markdown answers (the brief, a skill, a guide) go as they are.
+                        let mut text = match &result {
+                            Value::String(s) => s.clone(),
+                            _ => serde_json::to_string_pretty(&result).unwrap_or_else(|_| result.to_string()),
+                        };
                         if spec.mutates
                             && let Some(path) = self.backend.path()
                         {
                             text.push_str(&format!("\n(saved {})", path.display()));
                         }
-                        let mut reply = json!({ "content": [{ "type": "text", "text": text }], "isError": false });
+                        let mut content = vec![json!({ "type": "text", "text": text })];
+                        for path in folio_control::vision::pictures_in(spec.name, &result) {
+                            match folio_control::vision::picture(&path).await {
+                                Ok(p) => content.push(json!({ "type": "image", "data": p.data, "mimeType": p.media_type })),
+                                Err(e) => content.push(json!({ "type": "text", "text": format!("(The picture couldn't be read: {e})") })),
+                            }
+                        }
+                        let mut reply = json!({ "content": content, "isError": false });
                         if result.is_object() {
                             reply["structuredContent"] = result;
                         }
                         reply
                     }
                     Err(message) => json!({ "content": [{ "type": "text", "text": message }], "isError": true }),
-                })
+                };
+                if spec.family() != "harness"
+                    && let Some(block) = self.fresh_context().await
+                    && let Some(content) = reply["content"].as_array_mut()
+                {
+                    content.push(json!({ "type": "text", "text": block }));
+                }
+                Ok(reply)
             }
-            "resources/list" => Ok(json!({ "resources": RESOURCES.iter().map(|(uri, name, description, _)| json!({
-                "uri": uri, "name": name, "description": description, "mimeType": "application/json",
-            })).collect::<Vec<_>>() })),
+            "resources/list" => {
+                let mut list: Vec<Value> = RESOURCES.iter().map(|(uri, name, description, _)| json!({
+                    "uri": uri, "name": name, "description": description, "mimeType": "application/json",
+                })).collect();
+                list.push(json!({ "uri": "folio://harness/brief", "name": "Brief", "description": "The expert brief: how to do office work well in folio, the finish routine and the skills.", "mimeType": "text/markdown" }));
+                list.push(json!({ "uri": "folio://harness/context", "name": "Live context", "description": "What the file holds now, what the window shows, open problems.", "mimeType": "text/plain" }));
+                for k in folio_control::harness::skills() {
+                    list.push(json!({ "uri": format!("folio://skills/{}", k.name), "name": format!("Skill: {}", k.title), "description": k.when, "mimeType": "text/markdown" }));
+                }
+                Ok(json!({ "resources": list }))
+            }
             "resources/templates/list" => Ok(json!({ "resourceTemplates": [] })),
             "resources/read" => {
                 let uri = params.get("uri").and_then(Value::as_str).ok_or((-32602, "resources/read needs `uri`".to_string()))?;
+                let markdown = |text: String| json!({ "contents": [{ "uri": uri, "mimeType": "text/markdown", "text": text }] });
+                if uri == "folio://harness/brief" {
+                    return Ok(markdown(folio_control::harness::brief().to_string()));
+                }
+                if uri == "folio://harness/context" {
+                    let v = self.backend.call("harness.context", json!({})).await.map_err(|e| (-32000, e))?;
+                    return Ok(json!({ "contents": [{ "uri": uri, "mimeType": "text/plain", "text": v["text"].as_str().unwrap_or("") }] }));
+                }
+                if let Some(name) = uri.strip_prefix("folio://skills/") {
+                    let skill = folio_control::harness::skill(name).map_err(|e| (-32002, e))?;
+                    return Ok(markdown(skill.markdown.to_string()));
+                }
                 let command = RESOURCES.iter().find(|(u, ..)| *u == uri).map(|(.., c)| *c).ok_or((-32002, format!("Unknown resource `{uri}`")))?;
                 let value = self.backend.call(command, json!({})).await.map_err(|e| (-32000, e))?;
                 Ok(json!({ "contents": [{
@@ -360,15 +401,37 @@ impl Server {
                     "text": serde_json::to_string_pretty(&value).unwrap_or_default(),
                 }] }))
             }
-            "prompts/list" => Ok(json!({ "prompts": prompts::PROMPTS.iter().map(|p| json!({
-                "name": p.name,
-                "description": p.description,
-                "arguments": p.arguments.iter().map(|(name, description, required)| json!({
-                    "name": name, "description": description, "required": required,
-                })).collect::<Vec<_>>(),
-            })).collect::<Vec<_>>() })),
+            "prompts/list" => {
+                let mut list: Vec<Value> = prompts::PROMPTS.iter().map(|p| json!({
+                    "name": p.name,
+                    "description": p.description,
+                    "arguments": p.arguments.iter().map(|(name, description, required)| json!({
+                        "name": name, "description": description, "required": required,
+                    })).collect::<Vec<_>>(),
+                })).collect();
+                for k in folio_control::harness::skills() {
+                    list.push(json!({
+                        "name": format!("skill-{}", k.name),
+                        "title": k.title,
+                        "description": format!("Skill: {}", k.when),
+                        "arguments": [{ "name": "request", "description": "What the person wants, in their words", "required": false }],
+                    }));
+                }
+                Ok(json!({ "prompts": list }))
+            }
             "prompts/get" => {
                 let name = params.get("name").and_then(Value::as_str).ok_or((-32602, "prompts/get needs `name`".to_string()))?;
+                if let Some(skill) = name.strip_prefix("skill-") {
+                    let k = folio_control::harness::skill(skill).map_err(|e| (-32602, e))?;
+                    let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
+                    let request = prompts::arg(&arguments, "request", "");
+                    let text = if request.is_empty() {
+                        format!("Follow this folio skill, then the finish routine (harness_check, harness_look, fix, report).\n\n{}", k.markdown)
+                    } else {
+                        format!("{request}\n\nFollow this folio skill, then the finish routine (harness_check, harness_look, fix, report).\n\n{}", k.markdown)
+                    };
+                    return Ok(json!({ "description": k.when, "messages": [{ "role": "user", "content": { "type": "text", "text": text } }] }));
+                }
                 let prompt = prompts::PROMPTS.iter().find(|p| p.name == name).ok_or((-32602, format!("Unknown prompt `{name}`")))?;
                 let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
                 for (arg, _, required) in prompt.arguments {
@@ -392,14 +455,27 @@ impl Server {
             Backend::Local { file: Some(p), .. } => format!("File mode on {}: the file is saved after every change. Commands that need the window (ui_*, presenting) are unavailable.", p.display()),
             Backend::Local { .. } => "Headless mode (the app isn't running): file_new or file_open first.".into(),
         };
+        if for_builtin_agent() {
+            // The built-in agent has the brief in its system prompt already.
+            return format!("folio's MCP server for its built-in agent. {mode}");
+        }
         format!(
-            "folio is an office app: one file holds documents (rich text), sheets (formulas) and decks (slides), and a table or chart anywhere can show a sheet range live. {mode}\n\
-             Start with file_overview (also the resource folio://file/overview): every page with what it holds, live links, history and what the window shows.\n\
-             Documents: doc_read, then doc_write with Markdown (headings, lists, **bold**, tables, --- for a page break) is the quickest way to write; doc_setParagraph, doc_format (find=…), doc_replace, doc_insertTable (link='Sheet'!A1:C9 for a live table), doc_insertChart, doc_setup (page size, margins, header/footer), doc_comment.\n\
-             Sheets: sheet_read, sheet_setRange (rows of values; formulas start with =, references like B2, B2:B9, 'Other sheet'!A1), sheet_format (number formats like #,##0.00, 0%, yyyy-mm-dd), sheet_sort, sheet_filter, sheet_addChart. sheet_functions lists the functions; sheet_evaluate checks a formula without writing it. Results report cells showing errors: fix them.\n\
-             Decks: deck_read, deck_addSlide (layout, title, body lines become bullets), deck_setSlide, deck_addShape / deck_updateShape (points on a 960×540 slide), deck_addChart (live), deck_setTheme.\n\
-             Pages are named by name or 1-based number; blocks, slides and shapes by index or id. file_batch runs several commands as one undo step. file_export writes PDF, DOCX, XLSX, PPTX, ODF, CSV, Markdown or HTML (files permission). Plugins: plugin_guide explains how to write spreadsheet functions in Rust (plugins permission)."
+            "{mode}\nEach tool is one folio command (family_verb is family.verb in the brief below). Results carry a fresh <context> block when the file changed. \
+             Skills are also prompts (skill-<name>) and resources (folio://skills/<name>).\n\n{}",
+            folio_control::harness::brief()
         )
+    }
+
+    /// The live context, when it changed since the last one given: as a `<context>` block.
+    async fn fresh_context(&self) -> Option<String> {
+        let since = self.context.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|(seq, _)| *seq);
+        let v = self.backend.call("harness.context", json!({ "since": since })).await.ok()?;
+        let text = v["text"].as_str()?.to_string();
+        let seq = v["seq"].as_u64().unwrap_or(0);
+        let mut last = self.context.lock().unwrap_or_else(|e| e.into_inner());
+        let changed = last.as_ref().is_none_or(|(_, t)| *t != text);
+        *last = Some((seq, text.clone()));
+        changed.then(|| format!("<context>\n{text}\n</context>"))
     }
 }
 

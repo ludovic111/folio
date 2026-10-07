@@ -27,8 +27,8 @@ pub use chart::{Anchor, ChartStyle, Prim, chart_prims};
 pub use doc::{CellBox, DocLayout, PageLayout, Placed, layout_doc, page_count};
 pub use fonts::{Face, Fonts, bundled_fonts};
 pub use paint::Painter;
-pub use raster::{Canvas, chart_png, page_png, slide_png};
-pub use slide::{ShapeText, layout_shape_text, layout_slide_table, layout_table_box};
+pub use raster::{Canvas, chart_png, page_png, sheet_narrow_cells, sheet_png, sheet_png_size, slide_png};
+pub use slide::{ShapeText, layout_shape_text, layout_slide_table, layout_table_box, text_overflow};
 pub use text::{Deco, DecoKind, Glyph, Line, Marker, ParaCtx, ParaLayout, layout_paragraph, layout_paragraph_cached, shape_label};
 
 /// A colour as RGBA bytes.

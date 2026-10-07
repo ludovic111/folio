@@ -213,6 +213,174 @@ pub fn page_png(fonts: &mut Fonts, doc: &Document, page: usize, page_number: usi
     c.png()
 }
 
+/// Width of the row-number column and height of the column-letter row in a sheet picture, in points.
+const SHEET_HEAD: (f32, f32) = (36.0, 20.0);
+
+/// The text a sheet cell shows and how it is drawn.
+struct CellText {
+    text: String,
+    size: f32,
+    weight: u16,
+    italic: bool,
+    color: Rgba,
+    anchor: crate::chart::Anchor,
+    /// A number (or date) that must fit its column, or show `###`.
+    numeric: bool,
+}
+
+fn cell_text(cell: &folio_core::sheet::Cell) -> CellText {
+    use crate::chart::Anchor;
+    use folio_calc::Value;
+    use folio_core::text::Align;
+    let f = &cell.format;
+    let error = matches!(cell.value, Value::Error(_));
+    let numeric = matches!(cell.value, Value::Number(_));
+    let anchor = match f.align {
+        Some(Align::Center) => Anchor::Middle,
+        Some(Align::Right) => Anchor::End,
+        Some(Align::Left) | Some(Align::Justify) => Anchor::Start,
+        None if numeric => Anchor::End,
+        None if matches!(cell.value, Value::Bool(_)) || error => Anchor::Middle,
+        None => Anchor::Start,
+    };
+    let color = if error { [200, 30, 30, 255] } else { f.color.as_deref().map(|c| crate::parse_hex(c, [20, 20, 20, 255])).unwrap_or([20, 20, 20, 255]) };
+    CellText { text: cell.display(), size: f.size.unwrap_or(10.0), weight: if f.bold || error { 600 } else { 400 }, italic: f.italic, color, anchor, numeric }
+}
+
+/// Inner padding of a sheet cell, in points.
+const CELL_PAD: f32 = 4.0;
+
+/// Number cells too narrow for what they show (they draw `###`), as `(row, col)` in `range`.
+pub fn sheet_narrow_cells(fonts: &mut Fonts, sheet: &folio_core::sheet::Sheet, range: folio_calc::Range) -> Vec<folio_calc::Addr> {
+    let mut out = vec![];
+    for (a, cell) in sheet.cells.iter() {
+        if !range.contains(*a) {
+            continue;
+        }
+        let t = cell_text(cell);
+        if !t.numeric || t.text.is_empty() {
+            continue;
+        }
+        let (_, _, w) = crate::text::shape_label(fonts, &t.text, "sans", t.weight, t.italic, t.size, t.color);
+        if w > sheet.col_width(a.col) - 2.0 * CELL_PAD {
+            out.push(*a);
+        }
+    }
+    out
+}
+
+/// A range of a sheet page as a PNG, the way the grid shows it: column letters and row numbers,
+/// gridlines, fills, borders, each cell's shown value in its format (errors in red, `###` for a
+/// number its column is too narrow for), and the sheet's charts that fall in the range. One sheet
+/// pixel is one point; `scale` pixels per point. Rows a filter hides are left out.
+pub fn sheet_png(fonts: &mut Fonts, doc: &Document, page: usize, range: folio_calc::Range, scale: f32) -> Vec<u8> {
+    use crate::chart::Anchor;
+    use crate::paint::{paint_chart, paint_label};
+    let Some(sheet) = doc.pages.get(page).and_then(|p| p.sheet()) else { return vec![] };
+    let hidden = sheet.hidden_rows();
+    let cols: Vec<u32> = (range.start.col..=range.end.col).collect();
+    let rows: Vec<u32> = (range.start.row..=range.end.row).filter(|r| !hidden.contains(r)).collect();
+    let (hw, hh) = SHEET_HEAD;
+    let mut xs = vec![hw];
+    for c in &cols {
+        xs.push(xs[xs.len() - 1] + sheet.col_width(*c));
+    }
+    let mut ys = vec![hh];
+    for r in &rows {
+        ys.push(ys[ys.len() - 1] + sheet.row_height(*r));
+    }
+    let (w, h) = (xs[xs.len() - 1], ys[ys.len() - 1]);
+    let Some(mut c) = Canvas::new((w * scale).ceil() as u32, (h * scale).ceil() as u32, scale) else { return vec![] };
+    c.clear([255, 255, 255, 255]);
+    let head = [236, 236, 236, 255];
+    let grid = [210, 210, 210, 255];
+    let ink = [20, 20, 20, 255];
+    c.rect(0.0, 0.0, w, hh, head);
+    c.rect(0.0, 0.0, hw, h, head);
+    // Fills first, then the grid over them, then text and borders.
+    for (ri, r) in rows.iter().enumerate() {
+        for (ci, col) in cols.iter().enumerate() {
+            if let Some(fill) = sheet.cell(folio_calc::Addr::new(*r, *col)).and_then(|cell| cell.format.fill.as_deref()) {
+                c.rect(xs[ci], ys[ri], xs[ci + 1] - xs[ci], ys[ri + 1] - ys[ri], crate::parse_hex(fill, [255, 255, 255, 255]));
+            }
+        }
+    }
+    let line = 1.0 / scale.max(0.1);
+    for x in &xs {
+        c.line(&[(*x, 0.0), (*x, if sheet.gridlines { h } else { hh })], line, grid);
+    }
+    for y in &ys {
+        c.line(&[(0.0, *y), (if sheet.gridlines { w } else { hw }, *y)], line, grid);
+    }
+    for (ci, col) in cols.iter().enumerate() {
+        paint_label(&mut c, fonts, &folio_calc::col_name(*col), (xs[ci] + xs[ci + 1]) / 2.0, hh - 6.0, 9.0, [90, 90, 90, 255], Anchor::Middle, "sans", 500, false);
+    }
+    for (ri, r) in rows.iter().enumerate() {
+        paint_label(&mut c, fonts, &(r + 1).to_string(), hw - CELL_PAD, (ys[ri] + ys[ri + 1]) / 2.0 + 3.0, 9.0, [90, 90, 90, 255], Anchor::End, "sans", 500, false);
+    }
+    for (ri, r) in rows.iter().enumerate() {
+        for (ci, col) in cols.iter().enumerate() {
+            let Some(cell) = sheet.cell(folio_calc::Addr::new(*r, *col)) else { continue };
+            let (x0, x1, y0, y1) = (xs[ci], xs[ci + 1], ys[ri], ys[ri + 1]);
+            let mut t = cell_text(cell);
+            if !t.text.is_empty() {
+                // Text runs on over empty neighbours, like the grid; numbers never do.
+                let mut right = x1;
+                if !t.numeric && t.anchor == Anchor::Start {
+                    let mut k = ci + 1;
+                    while k < cols.len() && sheet.cell(folio_calc::Addr::new(*r, cols[k])).is_none_or(|n| n.input.is_empty()) {
+                        right = xs[k + 1];
+                        k += 1;
+                    }
+                }
+                if t.numeric {
+                    let (_, _, tw) = crate::text::shape_label(fonts, &t.text, "sans", t.weight, t.italic, t.size, t.color);
+                    if tw > x1 - x0 - 2.0 * CELL_PAD {
+                        t.text = "#".repeat(((x1 - x0 - 2.0 * CELL_PAD) / (t.size * 0.6)).max(1.0) as usize);
+                    }
+                }
+                let x = match t.anchor {
+                    Anchor::Start => x0 + CELL_PAD,
+                    Anchor::Middle => (x0 + x1) / 2.0,
+                    Anchor::End => x1 - CELL_PAD,
+                };
+                c.push_clip(x0, y0, right - x0, y1 - y0);
+                paint_label(&mut c, fonts, &t.text, x, (y0 + y1) / 2.0 + t.size * 0.35, t.size, t.color, t.anchor, "sans", t.weight, t.italic);
+                c.pop();
+            }
+            let b = &cell.format.border;
+            for (side, pts) in [('t', [(x0, y0), (x1, y0)]), ('b', [(x0, y1), (x1, y1)]), ('l', [(x0, y0), (x0, y1)]), ('r', [(x1, y0), (x1, y1)])] {
+                if b.contains(side) {
+                    c.line(&pts, 1.0, ink);
+                }
+            }
+        }
+    }
+    // Charts float over the grid in pixels from A1: place those that show in this range.
+    let ox: f32 = (0..range.start.col).map(|col| sheet.col_width(col)).sum();
+    let oy: f32 = (0..range.start.row).filter(|r| !hidden.contains(r)).map(|r| sheet.row_height(r)).sum();
+    for ch in &sheet.charts {
+        let (cx, cy) = (hw + ch.x - ox, hh + ch.y - oy);
+        if cx >= w || cy >= h || cx + ch.w <= hw || cy + ch.h <= hh {
+            continue;
+        }
+        c.push_clip(hw, hh, w - hw, h - hh);
+        c.rect(cx, cy, ch.w, ch.h, [255, 255, 255, 255]);
+        c.stroke_rect(cx, cy, ch.w, ch.h, line, grid);
+        paint_chart(&mut c, fonts, doc, &ch.chart, cx, cy, ch.w, ch.h, &ChartStyle { background: Some([255, 255, 255, 255]), size: 10.0, ..Default::default() });
+        c.pop();
+    }
+    c.png()
+}
+
+/// The size in points of [`sheet_png`]'s picture of `range` (before `scale`).
+pub fn sheet_png_size(sheet: &folio_core::sheet::Sheet, range: folio_calc::Range) -> (f32, f32) {
+    let hidden = sheet.hidden_rows();
+    let w: f32 = SHEET_HEAD.0 + (range.start.col..=range.end.col).map(|c| sheet.col_width(c)).sum::<f32>();
+    let h: f32 = SHEET_HEAD.1 + (range.start.row..=range.end.row).filter(|r| !hidden.contains(r)).map(|r| sheet.row_height(r)).sum::<f32>();
+    (w, h)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -36,11 +36,15 @@ pub(crate) fn short_id(id: &str) -> String {
         .collect()
 }
 
-pub(super) fn wire(q: Quirks, system: &str, messages: &[Message]) -> Vec<Value> {
+/// Tool messages carry text only: pictures follow them in a user message (the latest few;
+/// older ones, and all of them for a model that can't see, become a line of text), then the
+/// person's words or the live context.
+pub(super) fn wire(q: Quirks, system: &str, messages: &[Message], vision: bool) -> Vec<Value> {
     let call_id = |s: &str| if q.short_ids { short_id(s) } else { s.to_string() };
     let mut out = vec![json!({ "role": "system", "content": system })];
-    for m in messages {
-        let text = m.text();
+    let recent = super::recent_pictures(messages, vision);
+    for (i, m) in messages.iter().enumerate() {
+        let text = [m.text(), super::context_text(m)].into_iter().filter(|t| !t.is_empty()).collect::<Vec<_>>().join("\n\n");
         match m.role {
             Role::User => {
                 // Tool answers come first: they must follow the assistant's calls.
@@ -48,6 +52,12 @@ pub(super) fn wire(q: Quirks, system: &str, messages: &[Message]) -> Vec<Value> 
                     if let Part::ToolResult { id, output, .. } = p {
                         out.push(json!({ "role": "tool", "tool_call_id": call_id(id), "content": output }));
                     }
+                }
+                let (shown, older) = super::pictures_of(m, i, &recent);
+                if !shown.is_empty() || older > 0 {
+                    let mut content = vec![json!({ "type": "text", "text": super::pictures_note(shown.len(), older) })];
+                    content.extend(shown.iter().map(|(media_type, data)| json!({ "type": "image_url", "image_url": { "url": format!("data:{media_type};base64,{data}") } })));
+                    out.push(json!({ "role": "user", "content": content }));
                 }
                 if !text.is_empty() {
                     out.push(json!({ "role": "user", "content": text }));
@@ -78,7 +88,7 @@ pub(super) fn wire(q: Quirks, system: &str, messages: &[Message]) -> Vec<Value> 
 pub(super) async fn step(api: &Api, q: Quirks, run: &Run, set: &ToolSet, messages: &[Message]) -> Result<Step, String> {
     let mut body = json!({
         "model": api.model,
-        "messages": wire(q, &set.system_prompt(), messages),
+        "messages": wire(q, &set.system_prompt(), messages, api.sees()),
         "tools": tools(&set.defs),
         "tool_choice": "auto",
         "stream": true,

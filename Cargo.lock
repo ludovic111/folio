@@ -1949,7 +1949,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "folio"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1983,7 +1983,7 @@ dependencies = [
 
 [[package]]
 name = "folio-agent"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "folio-control",
@@ -2002,7 +2002,7 @@ dependencies = [
 
 [[package]]
 name = "folio-calc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2011,8 +2011,9 @@ dependencies = [
 
 [[package]]
 name = "folio-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "folio-agent",
  "folio-control",
  "folio-core",
  "serde_json",
@@ -2022,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "folio-control"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2047,6 +2048,7 @@ dependencies = [
  "sha2 0.10.9",
  "tar",
  "tempfile",
+ "tiny-skia",
  "tokio",
  "tokio-util",
  "toml 0.8.23",
@@ -2059,7 +2061,7 @@ dependencies = [
 
 [[package]]
 name = "folio-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "folio-calc",
@@ -2074,7 +2076,7 @@ dependencies = [
 
 [[package]]
 name = "folio-io"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "calamine",
  "chrono",
@@ -2097,7 +2099,7 @@ dependencies = [
 
 [[package]]
 name = "folio-layout"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cosmic-text",
  "folio-calc",
@@ -2108,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "folio-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "folio-cli",
  "folio-control",
@@ -2119,11 +2121,11 @@ dependencies = [
 
 [[package]]
 name = "folio-plugin"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "folio-release"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "minisign",

@@ -2,6 +2,23 @@
 
 What changed in each folio release.
 
+## 0.2.0 — 2026-10-07 (beta)
+
+folio's agent harness: an agent working in folio knows office work, sees what it made and checks it before it says it is done, whether it is the Agent panel, `folio-cli agent` or an outside agent over `folio-mcp`.
+
+### New
+- **An expert brief.** The built-in agent and `folio-mcp` share one brief (`harness.brief`): the file's model, the quality bar for documents (structure is styles, citations, page setup), sheets (inputs, calculations, outputs; formats; charts that say one thing; formula errors) and decks (one idea per slide, takeaway titles, text that fits), live links, the usual mistakes and a finish routine.
+- **Skills.** Twelve playbooks for office jobs, each with the steps, the exact commands and the checks: a report from notes, a letter or CV, meeting minutes, reviewing a document, a budget or model sheet, cleaning data and summarising it, a chart from data, fixing formula errors, a deck from a document, a pitch deck, importing and converting Office files, writing a function plugin. `harness.skills` lists them, `harness.skill` loads one; over MCP each is also a prompt (`skill-<name>`) and a resource (`folio://skills/<name>`).
+- **Live context before every step.** The agent gets the file, each page's size, what the window shows and selects, the open problems and what you changed since its last step, before every model step, not only with your request (`harness.context`; `folio-mcp` adds it to tool results when it changed).
+- **The agent sees its work.** `harness.look` draws a document's printed page, a slide, or a sheet range with its charts, exactly as the window and the PDF do, with its numbers (pages, words, headings, slide text and overflow, column sums, errors). The picture reaches models that can see, in the Agent panel (lsuite AI, Anthropic, OpenAI, OpenRouter, Gemini, Mistral, vision models on Ollama and LM Studio) and over MCP.
+- **Objective checks.** `harness.check` finds formula errors (the cell that causes them first), totals that leave out rows, empty cells inside tables and summed ranges, columns too narrow for their numbers, skipped heading levels, bold lines posing as headings, placeholder text, text overflowing slide boxes, shapes off the slide, empty titles and broken live links.
+- **`folio-cli agent`.** Runs the built-in agent on a file without the window (`folio-cli --file report.folio agent "…" --provider claude-code`).
+- **Evals.** Eleven scripted office jobs in `evals/`, run headless with a real model and scored automatically on the resulting file (`python3 evals/run.py`; results in `evals/RESULTS.md`).
+
+### Changed
+- **Updates come through lsuite.** The update check asks lsuite.xyz with your lsuite account (the free account the lsuite app signs in), and downloads through it; signatures are checked exactly as before. Signed out, it says to sign in in the lsuite app. `scripts/publish-build.sh` publishes a build to lsuite's build store.
+- Commands that answer Markdown (the brief, a skill, the plugin guide) reach agents as text, not as a JSON string.
+
 ## 0.1.0 — 2026-10-07 (beta)
 
 The first release of folio, lsuite's office app.

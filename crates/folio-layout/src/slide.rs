@@ -122,6 +122,33 @@ pub fn theme_chart_style(theme: &DeckTheme) -> ChartStyle {
     ChartStyle { text, grid: [text[0], text[1], text[2], 45], series, size: 12.0, background: None }
 }
 
+/// How a shape's text fits its box, in points: `(below, beside)`, how far the text runs past the
+/// bottom of the box and past its right edge (a word too long for the width). Zero when it fits.
+pub fn text_overflow(fonts: &mut Fonts, deck: &Deck, shape: &Shape) -> (f32, f32) {
+    if !shape.takes_text() || shape.text.is_empty() {
+        return (0.0, 0.0);
+    }
+    let t = layout_shape_text(fonts, deck, shape);
+    let below = (t.height - (shape.h - 2.0 * INSET).max(0.0)).max(0.0);
+    let width = (shape.w - 2.0 * INSET).max(4.0);
+    let mut widest = 0.0f32;
+    for (_, l) in &t.paras {
+        let chars: Vec<char> = l.text.chars().collect();
+        for line in &l.lines {
+            // The end of the line's last visible character (trailing spaces hang in the margin).
+            let mut end = line.end;
+            while end > line.start && chars.get(end - 1).is_some_and(|c| c.is_whitespace()) {
+                end -= 1;
+            }
+            if let Some((_, x)) = line.carets.iter().find(|(o, _)| *o == end) {
+                widest = widest.max(*x);
+            }
+        }
+    }
+    let beside = (widest - width).max(0.0);
+    (below, if beside > 1.0 { beside } else { 0.0 })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

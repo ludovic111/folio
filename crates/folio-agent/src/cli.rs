@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
-use crate::tools::{SYSTEM_PROMPT, bounded};
+use crate::tools::{bounded, system_prompt};
 use crate::{CliSession, Conversation, Message, ProviderKind, Role, Run};
 
 const CLAUDE_PLACES: &[&str] = &["~/.local/bin/claude", "~/.claude/local/claude", "~/.claude/local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude", "~/.npm-global/bin/claude"];
@@ -216,7 +216,7 @@ pub(crate) async fn run(run: &mut Run, prompt: String, mut conv: Conversation) -
     run.set_conversation(&asked);
     let resume = conv.cli_session.as_ref().filter(|s| s.provider == kind).map(|s| s.id.clone());
     // What the person is looking at goes to the CLI with the request; the thread keeps the request.
-    let framed = crate::context::glance(&run.session).frame(&prompt);
+    let framed = crate::context::context(&run.session, None).frame(&prompt);
 
     let mut out = turn(run, kind, &exe, &live, &workspace, resume.as_deref(), &framed, &conv).await;
     if resume.is_some() && out.1.is_err() && !out.0.started {
@@ -315,7 +315,7 @@ pub(crate) fn claude_args(config: &Path, model: &str, resume: Option<&str>, batc
     args.push("--mcp-config".into());
     args.push(config.to_string_lossy().into_owned());
     args.push("--append-system-prompt".into());
-    let system = format!("{SYSTEM_PROMPT}\nfolio's commands are the MCP tools mcp__folio__family_verb; you have no other tools.");
+    let system = format!("{}\nfolio's commands are the MCP tools mcp__folio__family_verb (harness_look is mcp__folio__harness_look); you have no other tools.", system_prompt());
     args.push(if batch { system.split(['\r', '\n']).map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ") } else { system });
     if !model.is_empty() {
         args.extend(["--model".into(), model.into()]);
@@ -559,7 +559,7 @@ async fn codex(run: &mut Run, exe: &Path, live: &Live, workspace: &Path, resume:
     let input = if resume.is_some() {
         prompt.to_string()
     } else {
-        format!("{SYSTEM_PROMPT}\nfolio's commands are the tools of the `folio` MCP server; use no other tools.\n\n{}", with_context(conv, prompt))
+        format!("{}\nfolio's commands are the tools of the `folio` MCP server; use no other tools.\n\n{}", system_prompt(), with_context(conv, prompt))
     };
     run.status("Starting Codex…");
     // `own` hands the sign-in back when dropped, also when the run is cancelled.

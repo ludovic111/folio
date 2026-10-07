@@ -7,17 +7,32 @@ use crate::http::{self, Lines};
 use crate::tools::ToolSet;
 use crate::{Message, Part, Role, Run};
 
-/// The thread as Ollama chat messages: tool answers right after the calls they answer.
-fn wire(system: &str, messages: &[Message]) -> Vec<Value> {
+/// Whether `model` takes pictures (Ollama lists `vision` among its capabilities). Unknown: no.
+pub(crate) async fn sees(http: &reqwest::Client, base: &str, model: &str) -> bool {
+    let shown = http.post(format!("{base}/api/show")).json(&json!({ "model": model })).timeout(std::time::Duration::from_secs(5)).send().await;
+    let Ok(r) = shown else { return false };
+    let v: Value = r.json().await.unwrap_or_default();
+    v["capabilities"].as_array().is_some_and(|c| c.iter().any(|c| c == "vision"))
+}
+
+/// The thread as Ollama chat messages: tool answers right after the calls they answer, then the
+/// pictures in a user message (the latest few, as for OpenAI).
+fn wire(system: &str, messages: &[Message], vision: bool) -> Vec<Value> {
+    let recent = super::recent_pictures(messages, vision);
     let mut out = vec![json!({ "role": "system", "content": system })];
-    for m in messages {
-        let text = m.text();
+    for (i, m) in messages.iter().enumerate() {
+        let text = [m.text(), super::context_text(m)].into_iter().filter(|t| !t.is_empty()).collect::<Vec<_>>().join("\n\n");
         match m.role {
             Role::User => {
                 for p in &m.parts {
                     if let Part::ToolResult { id, name, output, .. } = p {
                         out.push(json!({ "role": "tool", "tool_name": name, "tool_call_id": id, "content": output }));
                     }
+                }
+                let (shown, older) = super::pictures_of(m, i, &recent);
+                if !shown.is_empty() || older > 0 {
+                    let images: Vec<&str> = shown.iter().map(|(_, data)| *data).collect();
+                    out.push(json!({ "role": "user", "content": super::pictures_note(shown.len(), older), "images": images }));
                 }
                 if !text.is_empty() {
                     out.push(json!({ "role": "user", "content": text }));
@@ -46,7 +61,7 @@ fn wire(system: &str, messages: &[Message]) -> Vec<Value> {
 pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Message], round: usize) -> Result<Step, String> {
     let body = json!({
         "model": api.model,
-        "messages": wire(&set.system_prompt(), messages),
+        "messages": wire(&set.system_prompt(), messages, api.sees()),
         "tools": openai::tools(&set.defs),
         "stream": true,
         // Ollama's default context is short for tools and a file overview.

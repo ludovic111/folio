@@ -72,9 +72,34 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 - [x] lsuite AI: `account.*`, the shared `~/.lsuite/account.json`, loopback sign-in, first in the agent's
       providers and in the first-run setup.
 - [x] Design system v2, one-ink mark and icon (`scripts/gen-mark.py`).
-- [ ] Signed auto-update: only `app.checkUpdates` (looks at GitHub Releases); no in-app install yet.
-- [ ] Release binaries: the workflows exist (`.github/workflows/release.yml`) but nothing is published;
-      the site's download patterns expect `folio-macos-arm64.dmg` etc. (see `scripts/bundle-macos.sh`).
+- [x] Signed auto-update (`update.rs`), through lsuite (DISTRIBUTION.md, 0.2.0): reads
+      `<server>/api/apps/folio/latest.json` with `Authorization: Bearer` from `~/.lsuite/account.json`
+      (`LSUITE_HOME`; server `LSUITE_ACCOUNT_SERVER`, else the account's, else lsuite.xyz); the token goes
+      only to that server (the file route's redirect drops it); signed out → `sign_in` status "Sign in to
+      lsuite (in the lsuite app) to get updates"; `FOLIO_UPDATE_URL` still overrides (no token). Tested
+      against a fake server (`update.rs` tests).
+- [x] Releases: `release.yml` makes a draft; folio's suite builds come from kimchi's `suite-build.yml`
+      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's artifacts (or the draft)
+      to `ludovic111/lsuite-builds` as `folio-v<version>` with latest.json (folio-release) and SHA256SUMS.
+- [x] **Agent harness** (HARNESS.md, 0.2.0), `folio-control/src/harness/`:
+  1. Brief: `brief.md` + the skills' index = `harness.brief` = the built-in agent's system prompt
+     (`folio-agent` `system_prompt()`) = `folio-mcp` `instructions` (shortened for the built-in agent,
+     which has it already). A test keeps it 800–1,600 words and checks every command it names exists.
+  2. Skills: 12 in `harness/skills/*.md` (`# Title`, `When:`, `## Steps`, `## Checks`); `harness.skills`,
+     `harness.skill`; MCP prompts `skill-<name>` and resources `folio://skills/<name>`.
+  3. Live context: `harness/context.rs` (`glance` for the panel, `context` = glance + page sizes + open
+     problems + the person's changes since `seq`); the API loop appends a `Part::Context` after a step's
+     results when it changed; `folio-mcp` appends a `<context>` block to tool results when it changed.
+  4. Eyes: `harness.look` (`harness/look.rs`: `page_png`, `slide_png`, folio-layout's new `sheet_png`)
+     → `<data>/looks/`; `vision.rs` turns `harness.look`/`ui.screenshot` paths into pictures:
+     `Part::Image` per provider (kimchi's approach) and MCP image content.
+  5. Checks: `harness.check` (`harness/check.rs`); finish routine in the brief and every skill.
+  6. One undo per turn: the run's checkpoint + "Revert this run" (unchanged).
+  7. Evals: `evals/run.py` (11 jobs in `evals/jobs.py`, `folio-cli --file … agent` headless with Claude
+     Code by default), `evals/RESULTS.md`. Run before each release; a lower pass rate doesn't ship.
+- [ ] Harness gaps: the eval suite has been run on a few jobs only (see RESULTS.md); `harness.look`
+      can't show the window itself on Linux (`ui.screenshot` is macOS only); no named ranges (the brief
+      says so); `default printed page` for a look is page 1, not the caret's page.
 
 ## Verified local beta (2026-10-07)
 

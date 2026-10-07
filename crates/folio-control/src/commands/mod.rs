@@ -8,6 +8,7 @@ pub mod deck;
 pub mod doc;
 pub mod file;
 pub mod handoff;
+pub mod harness;
 pub mod history;
 pub mod page;
 pub mod plugin;
@@ -294,6 +295,21 @@ pub static SPECS: &[Spec] = &[
     edit("history.redo", "Redo the last undone change.", &[]),
     query("history.checkpoint", "The history position now, to come back to with history.revertTo.", &[]),
     edit("history.revertTo", "Undo every change made after a checkpoint (an agent's whole run).", &[req("checkpoint", Integer, "From history.checkpoint.")]),
+    // ---- harness (the agent harness) ---------------------------------------
+    query("harness.brief", "The expert brief every agent working in folio follows (Markdown): the file's model, the quality bar for documents, sheets and decks, the usual mistakes, the finish routine and the index of skills. The built-in agent's instructions and folio-mcp's are this text.", &[]),
+    query("harness.skills", "The skills: playbooks for common office jobs (a report from notes, a budget, a deck from a document, fixing formula errors…), as [{name, title, when}].", &[]),
+    query("harness.skill", "One skill's playbook (Markdown): when to use it, the steps with the exact commands, and the checks that prove it worked.", &[req("name", String, "The skill's name from harness.skills, e.g. budget-model.")]),
+    query("harness.context", "The live context an agent gets before each model step: the file and its pages with their sizes, the page shown and the selection, open problems (harness.check), and what the person changed since `since`.", &[opt("since", Integer, "The seq of the last context you got: the person's changes after it are listed.")]),
+    query("harness.look", "Look at the work: a picture of a document's printed page, a slide, or a sheet range with its charts, drawn exactly as the window and the PDF draw them (a PNG the model sees; its path is in the answer), with its numbers (pages, words, headings; slide text and overflow; column sums and errors) and the problems harness.check finds on that page.", &[
+        PAGE,
+        opt("pageNumber", Integer, "Documents: the printed page, from 1 (default 1)."),
+        SLIDE,
+        opt("range", String, "Sheets: the cells to draw, A1 notation (default: the used range and the charts over it)."),
+        opt("width", Integer, "Pages and slides: the picture's width in pixels (default 1200, at most 1568)."),
+    ]),
+    query("harness.check", "Objective checks before saying a job is done: formula errors (the cell causing them first), totals that leave out rows, empty cells inside tables and summed ranges, columns too narrow for their numbers, skipped heading levels, bold lines posing as headings, placeholder text, text overflowing slide boxes, shapes off the slide, empty titles, broken live links. Errors and warnings, each with where and how to fix it.", &[
+        opt("page", String, "Only this page (id, name or 1-based number); default: every page."),
+    ]),
     // ---- handoff (lsuite) -------------------------------------------------
     query("handoff.apps", "The other lsuite apps on this computer (from ~/.lsuite/apps): name, kind, version, whether running, and what folio can take from each (a picture from nori, a frame from kimchi).", &[]),
     edit("handoff.image", "Bring a picture from another lsuite app into the open file through its CLI: nori exports its open image (or a file), kimchi renders a frame of its open project (or a project file) at a time. It lands in a document page or on a slide.", &[
@@ -341,7 +357,7 @@ pub static SPECS: &[Spec] = &[
     edit("app.setAgentKey", "Save (or with no key, remove) an API key the built-in agent uses, in the OS keychain.", &[req("provider", String, "anthropic, openai, openrouter, gemini or mistral."), opt("key", String, "The key; empty removes it.")]).perm(Perm::PersonOnly),
     query("app.onboarding", "The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), the agent providers found on this computer and lsuite AI.", &[]),
     edit("app.finishOnboarding", "Finish (or skip) the first-run setup with the choices made.", &[opt("comingFrom", String, "office, google, apple, libreoffice or none."), opt("agent", Boolean, "Offer the Agent panel."), opt("provider", String, "The agent provider to use."), opt("author", String, "The name on comments and tracked changes.")]),
-    query("app.checkUpdates", "Look on GitHub Releases for a newer folio and say where to get it.", &[]),
+    query("app.checkUpdates", "Ask lsuite (with the lsuite account signed in on this computer) whether a newer folio is out, and say how to get it. Signed out, it says to sign in in the lsuite app.", &[]),
     query("app.updateStatus", "Read update availability, download progress and restart state.", &[]),
     edit("app.installUpdate", "Download, verify and install the available signed update.", &[]).perm(Perm::AppControl),
     edit("app.restart", "Restart folio to use an installed update.", &[]).perm(Perm::AppControl).window(),
@@ -369,6 +385,7 @@ pub async fn dispatch(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
         "link" | "media" => Box::pin(page::run_misc(s, cx, a)).await,
         "history" => Box::pin(history::run(s, cx, a)).await,
         "handoff" => Box::pin(handoff::run(s, cx, a)).await,
+        "harness" => Box::pin(harness::run(s, cx, a)).await,
         "account" => Box::pin(account::run(s, cx, a)).await,
         "plugin" => Box::pin(plugin::run(s, cx, a)).await,
         "agent" => Box::pin(agent::run(s, cx, a)).await,

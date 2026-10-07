@@ -852,7 +852,8 @@ fn update_controls(cx: &App) -> AnyElement {
     let store = cx.store();
     let s = store.read(cx);
     let status = folio_control::update::status(&s.session);
-    let message = if let Some(error) = &status.error { error.clone() }
+    let message = if let Some(sign_in) = &status.sign_in { sign_in.clone() }
+        else if let Some(error) = &status.error { error.clone() }
         else if status.ready { "Update installed. Restart to use it.".into() }
         else if let Some(p) = status.progress { format!("Downloading and verifying: {:.0}%", p * 100.) }
         else if let Some(version) = &status.available { format!("folio {version} is available.") }
@@ -866,7 +867,7 @@ fn update_controls(cx: &App) -> AnyElement {
             .child(Button::new("check-updates-now", "Check now").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.checkUpdates", json!({}), cx))))
             .when(status.can_install && status.progress.is_none() && !status.ready, |d| d.child(Button::new("install-update", "Install update").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.installUpdate", json!({}), cx)))))
             .when(status.ready, |d| d.child(Button::new("restart-update", "Restart folio").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.restart", json!({}), cx)))))
-            .when(status.available.is_some() && !status.can_install && !status.ready, |d| d.child(Button::new("download-update", "Open downloads").small().on_click(|_, _, cx| cx.open_url("https://lsuite.xyz/folio/download")))))
+            .when(status.sign_in.is_some() || (status.available.is_some() && !status.can_install && !status.ready), |d| d.child(Button::new("download-update", "Open the lsuite app").small().on_click(|_, _, cx| cx.open_url(folio_control::update::RELEASES_URL)))))
         .children(status.install_blocked.map(|message| div().text_size(px(sz::SM)).child(message)))
         .into_any_element()
 }
