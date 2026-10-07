@@ -3,8 +3,8 @@
 </p>
 <p align="center">
   <a href="https://lsuite.xyz/folio">Website</a> ·
-  <a href="https://github.com/ludovic111/folio/releases/latest">Download</a> ·
-  <a href="https://lsuite.xyz/folio/support">Sponsor</a>
+  <a href="https://lsuite.xyz/folio/download">Download</a> ·
+  <a href="https://lsuite.xyz/folio/support">Support</a>
 </p>
 
 <h1 align="center">folio</h1>
@@ -53,6 +53,25 @@ chrome; the paper stays white.
 - One undo history for everything, whoever made the change (you, the agent, a script)
 - Saves itself; `.folio` is a zip of JSON and pictures ([docs/FILE_FORMAT.md](docs/FILE_FORMAT.md))
 
+## Install
+
+Download the file for your computer from the
+[latest release](https://github.com/ludovic111/folio/releases/latest):
+
+| System | File |
+| --- | --- |
+| macOS, Apple silicon | `folio-macos-arm64.dmg` |
+| macOS, Intel | `folio-macos-x86_64.dmg` |
+| Windows | `folio-windows-x86_64.exe` (installer) or `folio-windows-x86_64.zip` (the same files, to run from any folder) |
+| Linux | `folio-linux-x86_64.AppImage` or `folio-linux-x86_64.deb` |
+
+Settings → Updates checks GitHub, verifies downloads with the embedded release key, and stages an
+update for restart. Automatic installation is opt-in. macOS bundles and Linux AppImages update in
+place with a rollback copy; Windows uses the signed installer. Managed/portable installations link
+to downloads instead.
+
+Or install it with the [lsuite launcher](https://lsuite.xyz/launcher).
+
 ## Drive it from AI and scripts
 
 Everything you can do in the window is a named command (`doc.write`, `sheet.setRange`,
@@ -68,8 +87,29 @@ folio-cli convert report.docx report.pdf
 
 The **Agent** panel (⌘J) runs **lsuite AI** with no setup once you sign in, or the model you
 already have: Claude Code, Codex, an Anthropic, OpenAI, OpenRouter or Mistral key, or a local model
-(Ollama, LM Studio). Ask it for a **plugin** and it writes a spreadsheet function in Rust with
-folio's SDK, builds it and installs it. Details: [docs/AI_CONTROL.md](docs/AI_CONTROL.md).
+(Ollama, LM Studio). Details: [docs/AI_CONTROL.md](docs/AI_CONTROL.md).
+
+## Plugins
+
+Ask the Agent panel for a **plugin** and it writes a spreadsheet function in Rust with folio's SDK
+(`crates/folio-plugin`, see its [guide](crates/folio-plugin/GUIDE.md)), builds it and installs it.
+The recipe agents follow is in [docs/AI_CONTROL.md](docs/AI_CONTROL.md#plugins-written-by-an-agent).
+Two examples are in [`examples/plugins`](examples/plugins): finance-extra and text-tools.
+
+## Works with the rest of lsuite
+
+`handoff.apps` lists the lsuite apps on this computer (from `~/.lsuite/apps`). `handoff.image
+app=nori` brings in nori's open image and `handoff.image app=kimchi time=12` a frame of kimchi's
+cut, as pictures in a document or on a slide. See
+[docs/AI_CONTROL.md](docs/AI_CONTROL.md#the-other-lsuite-apps).
+
+## Documentation
+
+- [docs/AI_CONTROL.md](docs/AI_CONTROL.md): the Agent panel, `folio-mcp`, `folio-cli`, permissions, plugins
+- [docs/COMMANDS.md](docs/COMMANDS.md): every command
+- [docs/FILE_FORMAT.md](docs/FILE_FORMAT.md): the `.folio` file
+- [crates/folio-plugin/GUIDE.md](crates/folio-plugin/GUIDE.md): writing a plugin
+- [CHANGELOG.md](CHANGELOG.md): what each release brought
 
 ## Architecture
 
@@ -88,27 +128,21 @@ crates/
   folio-release   signs update archives and writes latest.json for releases (no Node needed)
 ```
 
-## Build
+## Development
 
-Rust 1.92 or later.
+Rust 1.92 or later. Linux needs GPUI's usual libraries (the list is in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ```bash
 cargo run -p folio                      # the window
 cargo run -p folio-cli -- --help
+cargo test --workspace
 scripts/bundle-macos.sh                 # folio.app and a .dmg (on a Mac)
 ```
 
-## License
+`scripts/bundle-windows.sh` and `scripts/bundle-linux.sh` make the Windows and Linux packages.
 
-MIT. Fonts: IBM Plex and Chakra Petch (SIL Open Font License). Icons: Lucide (ISC). Other apps'
-logos belong to their owners (`crates/folio-desktop/assets/logos/SOURCES.md`).
-
-## Signed releases
-
-Settings → Updates checks GitHub, verifies downloads with the embedded release key, and stages an
-update for restart. Automatic installation is opt-in. macOS bundles and Linux AppImages update in
-place with a rollback copy; Windows uses the signed installer. Managed/portable installations link
-to downloads instead.
+### Signed releases
 
 The suite's Apple credentials stay in the kimchi repository. Maintainers dispatch
 `ludovic111/kimchi`'s `suite-build.yml` with `app=folio` and the full, published commit SHA.
@@ -117,3 +151,10 @@ Download the four platform artifacts, run `folio-release manifest <directory> --
 and attach the verified archives, signatures, installers and manifest to the release. The separate
 manual release workflow requires its own Apple credentials and updater key; it refuses unsigned
 release builds. Keep private signing keys outside the repository.
+
+## License
+
+MIT. Fonts: IBM Plex and Chakra Petch (SIL Open Font License). Icons: Lucide (ISC). Other apps'
+logos belong to their owners ([`crates/folio-desktop/assets/logos/SOURCES.md`](crates/folio-desktop/assets/logos/SOURCES.md)).
+
+folio is free. If it helps you, [support it](https://lsuite.xyz/folio/support).
