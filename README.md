@@ -85,6 +85,7 @@ crates/
   folio-desktop   the window (GPUI), binary `folio`
   folio-cli       `folio-cli`: any command, on the running app or a file
   folio-mcp       `folio-mcp`: the registry as MCP tools (`--live`, `--file`)
+  folio-release   signs update archives and writes latest.json for releases (no Node needed)
 ```
 
 ## Build
@@ -111,8 +112,8 @@ to downloads instead.
 
 The suite's Apple credentials stay in the kimchi repository. Maintainers dispatch
 `ludovic111/kimchi`'s `suite-build.yml` with `app=folio` and the full, published commit SHA.
-Download the four platform artifacts, run `folio-release manifest <directory> --version 0.1.0
---base-url https://github.com/ludovic111/folio/releases/download/v0.1.0 --out <directory>/latest.json`,
+Download the four platform artifacts, run `folio-release manifest <directory> --version X.Y.Z
+--base-url https://github.com/ludovic111/folio/releases/download/vX.Y.Z --out <directory>/latest.json`,
 and attach the verified archives, signatures, installers and manifest to the release. The separate
 manual release workflow requires its own Apple credentials and updater key; it refuses unsigned
 release builds. Keep private signing keys outside the repository.
