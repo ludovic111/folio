@@ -117,7 +117,7 @@ impl Styles {
                         let idx = |k: &str| xf.attr(k).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
                         let font = fonts.get(idx("fontId")).cloned().unwrap_or_default();
                         let nid = idx("numFmtId") as u32;
-                        let number = num_fmts.get(&nid).cloned().or_else(|| builtin_num_format(nid).map(str::to_string)).filter(|c| !c.eq_ignore_ascii_case("general"));
+                        let number = num_fmts.get(&nid).cloned().or_else(|| builtin_num_format(nid).map(str::to_string)).filter(|c| !c.eq_ignore_ascii_case("general")).map(|c| unescape_code(&c));
                         let al = xf.child("alignment");
                         let align = al.and_then(|a| a.attr("horizontal")).and_then(|h| match h {
                             "left" => Some(Align::Left),
@@ -262,6 +262,7 @@ fn read_sheet(pkg: &mut Package, path: &str, name: &str, cx: &mut Ctx) -> Result
     let mut shared: HashMap<String, (Addr, String)> = HashMap::new();
     let mut max_col = 0u32;
     let mut hidden_rows = vec![];
+    let mut row_px = BTreeMap::new();
     if let Some(data) = x.child("sheetData") {
         let mut next_row = 0u32;
         for row in data.children("row") {
@@ -269,6 +270,7 @@ fn read_sheet(pkg: &mut Package, path: &str, name: &str, cx: &mut Ctx) -> Result
             next_row = r + 1;
             if let Some(ht) = row.attr_f64("ht") {
                 let px = (ht * 4.0 / 3.0) as f32;
+                row_px.insert(r, px);
                 // Rows at the sheet's default height take folio's; rows sized to fit their text
                 // only when taller than folio's default.
                 let custom = row.attr_bool("customHeight", false) && default_row_px.is_none_or(|d| (d - px).abs() > 0.5);
@@ -278,6 +280,7 @@ fn read_sheet(pkg: &mut Package, path: &str, name: &str, cx: &mut Ctx) -> Result
             }
             if row.attr_bool("hidden", false) {
                 hidden_rows.push(r);
+                row_px.insert(r, 0.0);
             }
             let row_style = if row.attr_bool("customFormat", false) { row.attr("s") } else { None };
             let mut next_col = 0u32;
@@ -445,7 +448,7 @@ fn read_sheet(pkg: &mut Package, path: &str, name: &str, cx: &mut Ctx) -> Result
     {
         let drels = pkg.rels(&drel.target);
         for anchor in dx.elements() {
-            let rect = anchor_rect(anchor, &sheet);
+            let rect = anchor_rect(anchor, &col_px, default_col_px, &row_px, default_row_px.unwrap_or(20.0));
             if let Some(c) = anchor.find("chart")
                 && let Some(id) = c.attr_ns("id")
                 && let Some(cr) = drels.iter().find(|r| r.id == id)
@@ -462,14 +465,14 @@ fn read_sheet(pkg: &mut Package, path: &str, name: &str, cx: &mut Ctx) -> Result
 }
 
 /// An anchor's box in pixels on the grid.
-fn anchor_rect(anchor: &El, sheet: &Sheet) -> [f32; 4] {
+fn anchor_rect(anchor: &El, cols: &BTreeMap<u32, f32>, default_col: f32, rows: &BTreeMap<u32, f32>, default_row: f32) -> [f32; 4] {
     let emu = |v: Option<f64>| v.unwrap_or(0.0) as f32 / 9525.0;
     let point = |m: &El| -> (f32, f32) {
         let num = |n: &str| m.child(n).map(|e| e.text().trim().parse::<f64>().unwrap_or(0.0));
         let col = num("col").unwrap_or(0.0) as u32;
         let row = num("row").unwrap_or(0.0) as u32;
-        let x: f32 = (0..col).map(|c| sheet.col_width(c)).sum::<f32>() + emu(num("colOff"));
-        let y: f32 = (0..row).map(|r| sheet.row_height(r)).sum::<f32>() + emu(num("rowOff"));
+        let x: f32 = (0..col).map(|c| cols.get(&c).copied().unwrap_or(default_col)).sum::<f32>() + emu(num("colOff"));
+        let y: f32 = (0..row).map(|r| rows.get(&r).copied().unwrap_or(default_row)).sum::<f32>() + emu(num("rowOff"));
         (x, y)
     };
     let ext = |a: &El| a.child("ext").map(|e| (emu(e.attr_f64("cx")), emu(e.attr_f64("cy"))));
@@ -743,4 +746,41 @@ pub fn import(bytes: &[u8], title: &str) -> Result<Imported, String> {
         }
     }
     Ok(Imported { doc, warnings: out, format: "xlsx" })
+}
+
+/// Excel escapes characters that need no escaping (`yyyy\-mm\-dd`): written plainly, codes
+/// match folio's presets and survive other formats.
+pub(crate) fn unescape_code(code: &str) -> String {
+    let mut out = String::with_capacity(code.len());
+    let mut chars = code.chars();
+    let mut quoted = false;
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(n) = chars.next() {
+                // Decimal points and commas affect numeric formatting unless escaped.
+                if quoted || !matches!(n, '-' | '/' | ' ' | ':' | '(' | ')') {
+                    out.push(c);
+                }
+                out.push(n);
+            } else {
+                out.push(c);
+            }
+        } else {
+            if c == '"' {
+                quoted = !quoted;
+            }
+            out.push(c);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod format_code_tests {
+    #[test]
+    fn normalizes_date_separators_without_changing_numeric_literals() {
+        for (input, expected) in [(r"yyyy\-mm\-dd", "yyyy-mm-dd"), (r"0\,000", r"0\,000"), (r"0\.00", r"0\.00"), (r#"0 "a\-b""#, r#"0 "a\-b""#), (r"0\\-", r"0\\-")] {
+            assert_eq!(super::unescape_code(input), expected);
+        }
+    }
 }

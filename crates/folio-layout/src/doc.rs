@@ -538,7 +538,7 @@ pub(crate) mod tests {
         F.get_or_init(|| std::sync::Mutex::new(Fonts::bundled_only())).lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    const LOREM: &str = "Folio sets every paragraph with the bundled faces so that what is on screen is what prints. Lines break at word boundaries and pages break between lines, keeping at least two lines together at either end of a page when it can.";
+    const LOREM: &str = "folio sets every paragraph with the bundled faces so that what is on screen is what prints. Lines break at word boundaries and pages break between lines, keeping at least two lines together at either end of a page when it can.";
 
     pub(crate) fn doc_with(blocks: Vec<Block>) -> Document {
         let mut doc = Document::empty("Test");

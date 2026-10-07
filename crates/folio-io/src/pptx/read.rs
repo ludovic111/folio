@@ -347,7 +347,17 @@ fn read_text(cx: &SlideCx, sp: &El, chain: &[&El], style_color: Option<String>, 
             props.extend(defs.iter().copied());
             let flag = |k: &str| props.iter().find_map(|p| p.attr(k)).is_some_and(|v| v == "1" || v == "true");
             let size = props.iter().find_map(|p| p.attr_f64("sz")).map(|v| v / 100.0).unwrap_or(18.0) * scale;
-            let color = props.iter().find_map(|p| p.child("solidFill").and_then(|f| cx.scheme.color_in(f, None))).or_else(|| style_color.clone()).or_else(|| cx.scheme.scheme("tx1"));
+            // A shape's fontRef overrides the presentation-wide default text colour, but
+            // explicit run/paragraph and placeholder formatting still wins.
+            let local_styles: Vec<&El> = sp.path(&["txBody", "lstStyle"]).into_iter()
+                .chain(chain.iter().filter_map(|c| c.path(&["txBody", "lstStyle"]))).collect();
+            let local_levels = level_props(&local_styles, level);
+            let local_color = rpr.into_iter().chain(ppr.and_then(|p| p.child("defRPr")))
+                .chain(local_levels.iter().filter_map(|p| p.child("defRPr")))
+                .find_map(|p| p.child("solidFill").and_then(|f| cx.scheme.color_in(f, None)));
+            let color = local_color.or_else(|| style_color.clone())
+                .or_else(|| props.iter().find_map(|p| p.child("solidFill").and_then(|f| cx.scheme.color_in(f, None))))
+                .or_else(|| cx.scheme.scheme("tx1"));
             let font = props.iter().find_map(|p| p.child("latin").and_then(|l| l.attr("typeface"))).map(|t| cx.scheme.font(t)).unwrap_or_else(|| cx.scheme.font(if is_title { "+mj-lt" } else { "+mn-lt" }));
             let link = rpr.and_then(|r| r.child("hlinkClick")).and_then(|h| h.attr_ns("id")).and_then(|id| links.iter().find(|l| l.id == id)).filter(|l| l.external).map(|l| l.target.clone());
             runs.push(RawRun {

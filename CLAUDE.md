@@ -75,3 +75,12 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 - [ ] Signed auto-update: only `app.checkUpdates` (looks at GitHub Releases); no in-app install yet.
 - [ ] Release binaries: the workflows exist (`.github/workflows/release.yml`) but nothing is published;
       the site's download patterns expect `folio-macos-arm64.dmg` etc. (see `scripts/bundle-macos.sh`).
+
+## Verified local beta (2026-10-07)
+
+App names are always lowercase in UI and documentation. Apple silicon bundles were built on
+macmini under `~/builds/lsuite-2026-10-07/` and smoke-tested through their bundled CLIs. These
+are local ad-hoc-signed builds; public release, notarization and signed in-place updates remain
+separate release work. Linux workspace tests and clippy passed (existing warnings remain).
+Office/OpenDocument round trips preserve list kinds, page margins, sheet chart geometry,
+editable slide tables and local text colours. The embedded mark is folio's generated f.

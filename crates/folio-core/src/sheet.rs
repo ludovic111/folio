@@ -290,10 +290,22 @@ impl Sheet {
     /// cell has none.
     pub fn set_input(&mut self, a: Addr, input: &str) {
         let input = input.to_string();
-        let (_, suggested) = folio_calc::parse_input(&input);
+        let (parsed, suggested) = folio_calc::parse_input(&input);
+        // A typed value is its own value at once (formulas wait for the engine), so a sheet read
+        // without recalculating (an importer, an export of a model built in code) shows it.
+        let literal = match parsed {
+            folio_calc::Input::Number(n) => Some(Value::Number(n)),
+            folio_calc::Input::Text(t) => Some(Value::Text(t)),
+            folio_calc::Input::Bool(b) => Some(Value::Bool(b)),
+            folio_calc::Input::Empty => Some(Value::Empty),
+            folio_calc::Input::Formula(_) => None,
+        };
         match self.cells.get_mut(&a) {
             Some(c) => {
                 c.input = input;
+                if let Some(v) = literal {
+                    c.value = v;
+                }
                 if c.format.number.is_none()
                     && let Some(f) = suggested
                 {
@@ -306,7 +318,7 @@ impl Sheet {
             None if input.is_empty() => {}
             None => {
                 let format = CellFormat { number: suggested.map(str::to_string), ..Default::default() };
-                self.cells.insert(a, Cell { input, value: Value::Empty, format });
+                self.cells.insert(a, Cell { input, value: literal.unwrap_or(Value::Empty), format });
             }
         }
     }

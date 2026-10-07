@@ -348,28 +348,7 @@ impl Reader<'_, '_> {
                     s.line_width = if s.line.is_some() { line_width } else { 0.0 };
                     return Some(s);
                 }
-                if let Some(img) = e.child("image")
-                    && let Some(href) = img.attr("xlink:href")
-                {
-                    let path = href.trim_start_matches("./").to_string();
-                    let media = match self.media.get(&path) {
-                        Some(m) => m.clone(),
-                        None => {
-                            let bytes = self.pkg.read(&path)?;
-                            if folio_core::Media::sniff(&bytes) == "application/octet-stream" {
-                                self.other += 1;
-                                return None;
-                            }
-                            let id = self.doc.add_media(path.rsplit('/').next().unwrap_or("picture"), bytes);
-                            self.media.insert(path, id.clone());
-                            id
-                        }
-                    };
-                    if e.child("object").is_some() {
-                        self.charts += 1;
-                    }
-                    return Some(finish(Shape::new(ShapeKind::Image { media }, x, y, w, h), None, rot));
-                }
+                // A native table takes precedence over LibreOffice's preview image.
                 if let Some(t) = e.child("table") {
                     let mut widths = vec![];
                     for c in t.children("table-column") {
@@ -415,6 +394,28 @@ impl Reader<'_, '_> {
                     let mut s = finish(Shape::new(ShapeKind::Table { table }, x, y, w, h), None, rot);
                     s.text_size = size.unwrap_or(18.0);
                     return Some(s);
+                }
+                if let Some(img) = e.child("image")
+                    && let Some(href) = img.attr("xlink:href")
+                {
+                    let path = href.trim_start_matches("./").to_string();
+                    let media = match self.media.get(&path) {
+                        Some(m) => m.clone(),
+                        None => {
+                            let bytes = self.pkg.read(&path)?;
+                            if folio_core::Media::sniff(&bytes) == "application/octet-stream" {
+                                self.other += 1;
+                                return None;
+                            }
+                            let id = self.doc.add_media(path.rsplit('/').next().unwrap_or("picture"), bytes);
+                            self.media.insert(path, id.clone());
+                            id
+                        }
+                    };
+                    if e.child("object").is_some() {
+                        self.charts += 1;
+                    }
+                    return Some(finish(Shape::new(ShapeKind::Image { media }, x, y, w, h), None, rot));
                 }
                 if e.child("object").is_some() {
                     self.charts += 1;

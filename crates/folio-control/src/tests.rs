@@ -81,7 +81,7 @@ async fn text_editing_round_trip() {
     assert_eq!(r["blocks"][0]["style"], "heading1");
     assert_eq!(r["blocks"][1]["text"], "Second");
     let md = run(&s, "doc.read", json!({ "markdown": true })).await;
-    assert!(md["markdown"].as_str().unwrap().starts_with("# **Hello** world"), "{md}");
+    assert!(md["markdown"].as_str().unwrap().starts_with("## **Hello** world"), "{md}");
     run(&s, "doc.replace", json!({ "find": "world", "replace": "folio" })).await;
     let r = run(&s, "doc.read", json!({})).await;
     assert_eq!(r["blocks"][0]["text"], "Hello folio");

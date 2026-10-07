@@ -332,19 +332,26 @@ impl<'a> Writer<'a> {
         }
     }
 
-    fn list_style_for(&mut self, blocks: &[Block], from: usize) -> String {
+    fn list_style_for(&mut self, blocks: &[Block], from: usize) -> (String, usize) {
         let mut levels: BTreeMap<u8, ListKind> = BTreeMap::new();
+        let mut end = from;
         for b in &blocks[from..] {
             let Block::Paragraph(p) = b else { break };
             let Some(k) = p.list else { break };
+            // ODF has one marker kind per level in a list style. Start a new list when the
+            // writer switches from bullets to numbers (or checkboxes) at the same level.
+            if levels.get(&p.level).is_some_and(|old| *old != k) {
+                break;
+            }
             levels.entry(p.level).or_insert(k);
+            end += 1;
         }
         if let Some(r) = self.list_styles.iter().find(|r| r.levels == levels) {
-            return r.name.clone();
+            return (r.name.clone(), end);
         }
         let name = format!("L{}", self.list_styles.len() + 1);
         self.list_styles.push(ListRegion { name: name.clone(), levels });
-        name
+        (name, end)
     }
 
     fn table_xml(&mut self, out: &mut String, t: &Table, text_w: f32, break_before: bool, master: Option<&str>) {
@@ -449,11 +456,11 @@ impl<'a> Writer<'a> {
         while i < blocks.len() {
             match &blocks[i] {
                 Block::Paragraph(p) if p.list.is_some() => {
-                    let ls = self.list_style_for(blocks, i);
+                    let (ls, end) = self.list_style_for(blocks, i);
                     let _ = write!(out, "<text:list text:style-name=\"{ls}\">");
                     let mut depth = 0u8; // open lists inside the outer one
                     let mut first = true;
-                    while i < blocks.len() {
+                    while i < end {
                         let Block::Paragraph(p) = &blocks[i] else { break };
                         if p.list.is_none() {
                             break;
@@ -682,8 +689,8 @@ fn styles_xml(masters: &[(String, PageSetup)], title: &str) -> String {
             pt(s.margin_left),
             pt(s.margin_right)
         );
-        let _ = write!(x, "<style:header-style>{}</style:header-style>", if hh > 0.0 { format!("<style:header-footer-properties fo:min-height=\"0pt\" fo:margin-bottom=\"{}\"/>", pt(hh * 0.5)) } else { String::new() });
-        let _ = write!(x, "<style:footer-style>{}</style:footer-style></style:page-layout>", if fh > 0.0 { format!("<style:header-footer-properties fo:min-height=\"0pt\" fo:margin-top=\"{}\"/>", pt(fh * 0.5)) } else { String::new() });
+        let _ = write!(x, "<style:header-style>{}</style:header-style>", if hh > 0.0 { format!("<style:header-footer-properties fo:min-height=\"{0}\" fo:margin-bottom=\"{0}\"/>", pt(hh * 0.5)) } else { String::new() });
+        let _ = write!(x, "<style:footer-style>{}</style:footer-style></style:page-layout>", if fh > 0.0 { format!("<style:header-footer-properties fo:min-height=\"{0}\" fo:margin-top=\"{0}\"/>", pt(fh * 0.5)) } else { String::new() });
     }
     x.push_str("</office:automatic-styles><office:master-styles>");
     for (i, (name, s)) in masters.iter().enumerate() {

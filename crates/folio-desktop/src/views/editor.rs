@@ -355,9 +355,9 @@ impl Editor {
                     div()
                         .flex()
                         .gap(px(6.))
-                        .child(Button::new("add-doc", "Doc").with_icon("file-text").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewDocPage), cx)))
-                        .child(Button::new("add-sheet", "Sheet").with_icon("sheet").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewSheetPage), cx)))
-                        .child(Button::new("add-deck", "Deck").with_icon("presentation").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewDeckPage), cx))),
+                        .child(Button::new("add-doc", "Doc").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewDocPage), cx)))
+                        .child(Button::new("add-sheet", "Sheet").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewSheetPage), cx)))
+                        .child(Button::new("add-deck", "Deck").small().full_width().on_click(|_, w, cx| w.dispatch_action(Box::new(NewDeckPage), cx))),
                 ),
             )
             .into_any_element()

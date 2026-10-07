@@ -23,6 +23,10 @@ use gpui::{App, AppContext as _, Bounds, TitlebarOptions, WindowBackgroundAppear
 use folio_control::{Session, SessionOptions};
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--version" || arg == "-V") {
+        println!("folio {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     init_logging();
     // Background work (saving, the bridge, the agent) runs on Tokio; GPUI drives the window.
     let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(3).enable_all().thread_name("folio-worker").build().expect("tokio runtime");

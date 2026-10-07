@@ -950,7 +950,9 @@ fn read_table(t: &El, styles: &Styles, counts: &mut Counts) -> RawSheet {
 
 /// A chart object's kind, title and data range.
 fn read_chart_object(x: &El, names: &HashMap<String, String>) -> Result<Chart, String> {
-    let chart = x.find("chart").ok_or("it has no chart")?;
+    // office:chart wraps chart:chart; the XML helper stores local names.
+    let holder = x.find("chart").ok_or("it has no chart")?;
+    let chart = if holder.child("plot-area").is_some() { holder } else { holder.child("chart").ok_or("it has no chart")? };
     let class = chart.attr_any("class").unwrap_or("chart:bar");
     let plot = chart.child("plot-area").ok_or("it has no plot area")?;
     let vertical = plot.attr_any("vertical") == Some("true");

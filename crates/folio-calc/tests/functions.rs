@@ -86,6 +86,8 @@ fn check(cases: &[(&str, Value)]) {
     }
 }
 
+// Rounding examples deliberately use truncated decimal values, not pi.
+#[allow(clippy::approx_constant)]
 #[test]
 fn math() {
     use ErrorKind::*;

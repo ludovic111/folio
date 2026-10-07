@@ -64,8 +64,9 @@ pub async fn run(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
         "sheet.read" => {
             let r = match a.opt_str("range") {
                 Some(r) => sh.clip(range(r)?),
+                // From A1, so row and column indexes in the answer are the sheet's own.
                 None => match sh.used_range() {
-                    Some(r) => r,
+                    Some(r) => Range { start: Addr::new(0, 0), end: r.end },
                     None => return Ok(json!({ "name": doc.pages[pi].name, "range": null, "rows": [], "charts": sh.charts })),
                 },
             };
