@@ -1959,6 +1959,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "unicode-segmentation",
  "uuid",
  "winresource",
@@ -2056,6 +2057,7 @@ name = "folio-io"
 version = "0.1.0"
 dependencies = [
  "calamine",
+ "chrono",
  "csv",
  "folio-calc",
  "folio-core",

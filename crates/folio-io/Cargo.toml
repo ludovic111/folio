@@ -10,6 +10,7 @@ folio-calc.workspace = true
 folio-core.workspace = true
 folio-layout.workspace = true
 calamine.workspace = true
+chrono.workspace = true
 csv.workspace = true
 image.workspace = true
 krilla.workspace = true
