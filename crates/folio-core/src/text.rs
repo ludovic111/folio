@@ -1705,7 +1705,7 @@ mod tests {
         insert_text(&mut f, Pos::new(0, 2), "X", None);
         assert_eq!(texts(&f), ["héXllo wörld"]);
         delete(&mut f, Pos::new(0, 7), Pos::new(0, 9));
-        assert_eq!(texts(&f), ["héXllo ld"]);
+        assert_eq!(texts(&f), ["héXllo rld"]);
     }
 
     #[test]

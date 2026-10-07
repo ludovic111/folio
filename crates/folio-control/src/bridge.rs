@@ -220,10 +220,10 @@ async fn connection(stream: TcpStream, session: &Arc<Session>, token: &str) -> s
         let out = match serde_json::from_str::<Request>(&line) {
             Ok(r) => {
                 let mutates = crate::registry::spec(&r.method).is_some_and(|s| s.mutates);
-                if source.is_agent() && mutates && checkpoint.is_none_or(|(p, _)| Some(p) != session.current_id()) {
+                if source.is_agent() && mutates && checkpoint.as_ref().is_none_or(|(p, _)| Some(p) != session.current_id().as_ref()) {
                     checkpoint = session.checkpoint();
                 }
-                let cp = checkpoint.filter(|_| source.is_agent()).map(|(_, c)| c);
+                let cp = checkpoint.as_ref().filter(|_| source.is_agent()).map(|(_, c)| *c);
                 reply(&r.id, crate::registry::call_in(session, source, &r.method, r.params, cp).await)
             }
             Err(e) => reply(&Value::Null, Err(format!("Invalid request: {e}"))),

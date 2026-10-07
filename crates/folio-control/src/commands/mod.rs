@@ -375,6 +375,6 @@ pub async fn dispatch(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
     }
 }
 
-pub fn unhandled(cx: &Ctx) -> String {
+pub fn unhandled(cx: &Ctx) -> std::string::String {
     format!("`{}` isn't handled (a bug in folio).", cx.spec.name)
 }
