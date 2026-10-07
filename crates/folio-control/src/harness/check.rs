@@ -92,6 +92,8 @@ pub fn check(doc: &Document, page: Option<usize>) -> Report {
             problems.push(Problem { page: on, severity: "error", kind: "brokenLink", at: what, message: format!("The live link {link} doesn't resolve: {}", e.0) });
         }
     }
+    // Errors first, each page's order kept.
+    problems.sort_by_key(|p| p.severity != "error");
     let errors = problems.iter().filter(|p| p.severity == "error").count();
     Report { ok: errors == 0, errors, warnings: problems.len() - errors, problems }
 }
@@ -472,7 +474,8 @@ mod tests {
     #[test]
     fn a_clean_sheet_passes() {
         let d = doc_with_sheet(&[("A1", "Item"), ("B1", "Cost"), ("A2", "Rent"), ("B2", "1200"), ("A3", "Food"), ("B3", "300"), ("A4", "Total"), ("B4", "=SUM(B2:B3)")]);
-        let r = check(&d, None);
+        let sheet = d.pages.iter().position(|p| p.name == "Budget");
+        let r = check(&d, sheet);
         assert!(r.ok && r.problems.is_empty(), "{:#?}", r.problems);
         assert_eq!(r.summary(), "No problems found");
     }

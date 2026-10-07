@@ -192,7 +192,7 @@ async fn anthropic_tool_call_lands_in_the_file_and_the_run_reverts() {
     assert_eq!(requests[0].headers.get("x-api-key").unwrap(), "sk-ant-test");
     assert!(requests[0].headers.get("authorization").is_none(), "the Anthropic API gets the key once");
     let first: Value = serde_json::from_slice(&requests[0].body).unwrap();
-    assert!(first["system"].as_str().unwrap().contains("file_overview"), "the agent is told to read the overview first");
+    assert!(first["system"].as_str().unwrap().contains("file.overview"), "the agent is told to read the overview first");
     let second: Value = serde_json::from_slice(&requests[1].body).unwrap();
     assert_eq!(second["messages"][1]["content"][0], json!({ "type": "thinking", "thinking": "", "signature": "sig-abc" }));
     assert_eq!(second["messages"][1]["content"][2]["input"]["at"], "A1");
@@ -279,7 +279,8 @@ async fn ollama_runs_tools_locally() {
     let events = collect(&mut run).await;
     assert!(matches!(events.last(), Some(AgentEvent::Done { changes: 1, summary, .. }) if summary == "It shows 42."), "{events:#?}");
     assert_eq!(cells(&s).await[1][1], json!(42.0));
-    let requests = server.received_requests().await.unwrap();
+    // Only the chat requests (the run also asks /api/show whether the model sees pictures).
+    let requests: Vec<_> = server.received_requests().await.unwrap().into_iter().filter(|r| r.url.path() == "/api/chat").collect();
     let body: Value = serde_json::from_slice(&requests[1].body).unwrap();
     let tool = body["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap();
     assert_eq!(tool["tool_name"], "sheet_set");
@@ -1020,7 +1021,7 @@ async fn anthropic_sees_what_harness_look_draws() {
     let system = first["system"].as_str().unwrap();
     assert!(system.contains("Finish routine") && system.contains("`budget-model`") && system.contains("In the Agent panel"), "{system}");
     let asked = first["messages"][0]["content"][0]["text"].as_str().unwrap();
-    assert!(asked.starts_with("<context>\n") && asked.contains("Pages: \"Sheet 1\" (sheet, A1:B4, 1 formula)") && asked.ends_with("</context>\n\nLook at the table"), "{asked}");
+    assert!(asked.starts_with("<context>\n") && asked.contains("Pages: \"Sheet\" (sheet, A1:B4, 1 formula)") && asked.ends_with("</context>\n\nLook at the table"), "{asked}");
     let second: Value = serde_json::from_slice(&requests[1].body).unwrap();
     let result = &second["messages"][2]["content"][0];
     assert_eq!(result["type"], "tool_result");

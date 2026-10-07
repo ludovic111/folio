@@ -38,6 +38,7 @@ pub struct Request {
 }
 
 /// A picture and its numbers.
+#[derive(Debug)]
 pub struct Look {
     pub png: Vec<u8>,
     pub info: Value,
