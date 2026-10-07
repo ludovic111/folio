@@ -154,7 +154,7 @@ pub struct Filter {
     /// The filtered range, header row included (`A1:D40`).
     pub range: String,
     /// Per column of the range (0 = its first column): the condition.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_index_map")]
     pub rules: BTreeMap<u32, FilterRule>,
 }
 
@@ -187,10 +187,10 @@ pub struct Sheet {
     #[serde(serialize_with = "ser_cells", deserialize_with = "de_cells", default)]
     pub cells: Cells,
     /// Column widths in pixels by column index (default [`COL_W`]).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "de_index_map")]
     pub cols: BTreeMap<u32, f32>,
     /// Row heights in pixels by row index (default [`ROW_H`]).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "de_index_map")]
     pub rows: BTreeMap<u32, f32>,
     #[serde(default)]
     pub freeze_rows: u32,
@@ -212,6 +212,13 @@ impl Default for Sheet {
     fn default() -> Self {
         Sheet { cells: Cells::new(), cols: BTreeMap::new(), rows: BTreeMap::new(), freeze_rows: 0, freeze_cols: 0, filter: None, charts: vec![], gridlines: true }
     }
+}
+
+/// Maps keyed by an index, written as JSON objects ("0": …). Read by hand because pages are
+/// flattened (serde can't turn string keys into numbers through a flattened buffer).
+fn de_index_map<'de, D: Deserializer<'de>, V: Deserialize<'de>>(d: D) -> Result<BTreeMap<u32, V>, D::Error> {
+    let map: BTreeMap<String, V> = BTreeMap::deserialize(d)?;
+    map.into_iter().map(|(k, v)| k.trim().parse::<u32>().map(|k| (k, v)).map_err(|_| serde::de::Error::custom(format!("`{k}` isn't an index")))).collect()
 }
 
 fn ser_cells<S: Serializer>(cells: &Cells, s: S) -> Result<S::Ok, S::Error> {
@@ -572,6 +579,7 @@ mod tests {
     #[test]
     fn json_keys_are_a1() {
         let mut s = Sheet::default();
+        s.cols.insert(2, 140.0);
         s.set_input(a("B3"), "12");
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["cells"]["B3"]["input"], "12");

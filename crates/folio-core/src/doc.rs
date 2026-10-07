@@ -524,12 +524,14 @@ mod tests {
 
     #[test]
     fn page_json_is_flat() {
-        let p = Page::new(PageKind::Sheet, "Budget");
+        let mut p = Page::new(PageKind::Sheet, "Budget");
+        p.sheet_mut().unwrap().cols.insert(0, 120.0);
         let v = serde_json::to_value(&p).unwrap();
         assert_eq!(v["kind"], "sheet");
         assert_eq!(v["name"], "Budget");
-        let back: Page = serde_json::from_value(v).unwrap();
+        let back: Page = serde_json::from_str(&v.to_string()).unwrap();
         assert_eq!(back.kind(), PageKind::Sheet);
+        assert_eq!(back.sheet().unwrap().col_width(0), 120.0);
     }
 
     #[test]
