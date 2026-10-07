@@ -116,7 +116,7 @@ const NS: &str = r#"xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1
 #[test]
 fn reads_what_libreoffice_writes() {
     let content = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?><office:document-content {NS} office:version="1.3"><office:automatic-styles>
+        r##"<?xml version="1.0" encoding="UTF-8"?><office:document-content {NS} office:version="1.3"><office:automatic-styles>
         <style:style style:name="P1" style:family="paragraph" style:parent-style-name="Text_20_body"><style:paragraph-properties fo:text-align="center"/></style:style>
         <style:style style:name="P2" style:family="paragraph" style:parent-style-name="Text_20_body"><style:paragraph-properties fo:break-before="page"/></style:style>
         <style:style style:name="T1" style:family="text"><style:text-properties fo:font-weight="bold" fo:color="#ff0000"/></style:style>
@@ -131,7 +131,7 @@ fn reads_what_libreoffice_writes() {
         <table:table table:name="T"><table:table-column table:number-columns-repeated="2"/><table:table-header-rows><table:table-row><table:table-cell><text:p>H1</text:p></table:table-cell><table:table-cell><text:p>H2</text:p></table:table-cell></table:table-row></table:table-header-rows>
         <table:table-row><table:table-cell table:number-columns-spanned="2"><text:p>span</text:p></table:table-cell><table:covered-table-cell/></table:table-row></table:table>
         <text:p>Quote me</text:p>
-        </office:text></office:body></office:document-content>"#
+        </office:text></office:body></office:document-content>"##
     );
     let styles = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><office:document-styles {NS}><office:styles>

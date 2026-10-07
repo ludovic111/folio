@@ -38,7 +38,7 @@ fn settle(cx: &mut VisualTestContext, done: impl Fn(&crate::store::Store) -> boo
     }
 }
 
-fn setup(cx: &mut TestAppContext, kind: &str) -> (Fixture, &mut VisualTestContext) {
+fn setup<'a>(cx: &'a mut TestAppContext, kind: &str) -> (Fixture, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let dir = tempfile::tempdir().unwrap();

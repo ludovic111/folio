@@ -23,4 +23,5 @@ tiny-skia.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+imbl.workspace = true
 tempfile.workspace = true

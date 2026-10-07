@@ -434,8 +434,8 @@ impl Dialogs {
     fn plugins(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.theme().clone();
         let list = self.data.get("plugin.list").cloned().unwrap_or(Value::Null);
-        let items: Vec<Value> = list.as_array().cloned().or_else(|| list.get("plugins").and_then(Value::as_array).cloned()).unwrap_or_default();
-        let (stock, installed): (Vec<Value>, Vec<Value>) = items.into_iter().partition(|p| p["stock"] == true);
+        let stock: Vec<Value> = list["stock"].as_array().cloned().unwrap_or_default();
+        let installed: Vec<Value> = list["installed"].as_array().cloned().unwrap_or_default();
         let toolchain = self.data.get("plugin.toolchain").cloned();
         let row = |p: &Value, i: usize, removable: bool| {
             let id = p["id"].as_str().unwrap_or("").to_string();

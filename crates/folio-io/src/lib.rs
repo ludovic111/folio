@@ -40,6 +40,7 @@ pub struct Format {
 }
 
 /// What an import gives: the document, the format it was, what didn't come through.
+#[derive(Debug)]
 pub struct Imported {
     pub doc: Document,
     pub warnings: Vec<String>,
