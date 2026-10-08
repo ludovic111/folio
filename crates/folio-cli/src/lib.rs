@@ -276,7 +276,8 @@ fn absolute_paths(params: &mut serde_json::Map<String, Value>) {
             *s = p.to_string_lossy().into_owned();
         }
     };
-    for key in ["path"] {
+    {
+        let key = "path";
         if let Some(v) = params.get_mut(key) {
             fix(v);
         }

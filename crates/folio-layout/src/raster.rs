@@ -37,7 +37,7 @@ pub fn decode_pixmap(bytes: &[u8]) -> Option<Pixmap> {
     let img = image::load_from_memory(bytes).ok()?.to_rgba8();
     let (w, h) = img.dimensions();
     let mut data = img.into_raw();
-    for px in data.chunks_exact_mut(4) {
+    for px in data.as_chunks_mut::<4>().0 {
         let a = px[3] as u16;
         if a < 255 {
             for c in &mut px[..3] {

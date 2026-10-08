@@ -291,14 +291,13 @@ fn parse_date(s: &str) -> Option<(f64, Option<&'static str>)> {
         }
     }
     // Dates with a month name: "6 Oct 2026", "Oct 6, 2026", "6-Oct-2026".
-    let words: Vec<&str> = s.split(|c: char| c == ' ' || c == ',' || c == '-').filter(|w| !w.is_empty()).collect();
+    let words: Vec<&str> = s.split([' ', ',', '-']).filter(|w| !w.is_empty()).collect();
     if words.len() == 3 {
         let (d, m, y) = if let Some(m) = month_from_name(words[1]) {
             (small_number(words[0])?, m, words[2])
-        } else if let Some(m) = month_from_name(words[0]) {
-            (small_number(words[1])?, m, words[2])
         } else {
-            return None;
+            let m = month_from_name(words[0])?;
+            (small_number(words[1])?, m, words[2])
         };
         let y = year_from(y)?;
         return valid_date(y, m, d).map(|n| (n, Some("d mmm yyyy")));

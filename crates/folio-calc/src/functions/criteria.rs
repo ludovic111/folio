@@ -226,7 +226,7 @@ mod tests {
         assert!(!m(t("coat"), "c?t"));
         assert!(m(t("a*b"), "a~*b"));
         assert!(!m(t("axb"), "a~*b"));
-        assert!(m(t("done"), "<>Done") == false);
+        assert!(!m(t("done"), "<>Done"));
         assert!(m(t("todo"), "<>done"));
         assert!(m(Value::Empty, "<>done"));
         assert!(m(Value::Empty, "="));

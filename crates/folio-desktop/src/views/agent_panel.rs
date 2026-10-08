@@ -764,7 +764,7 @@ impl AgentPanel {
         let runs: Vec<RunInfo> = self.snap.runs.iter().rev().cloned().collect();
         let mut rows: Vec<AnyElement> = vec![];
         let mut mine = 0usize;
-        let mut flush = |mine: &mut usize, rows: &mut Vec<AnyElement>| {
+        let flush = |mine: &mut usize, rows: &mut Vec<AnyElement>| {
             if *mine > 0 {
                 rows.push(
                     div()

@@ -192,11 +192,10 @@ fn lex_one(s: &str, bytes: &[u8], i: usize, c: char) -> (Tok, usize) {
         ';' => (Tok::Semicolon, i + 1),
         ':' => (Tok::Colon, i + 1),
         _ => {
-            if c == '$' || c.is_ascii_alphanumeric() {
-                if let Some((body, end)) = scan_body(bytes, i) {
+            if (c == '$' || c.is_ascii_alphanumeric())
+                && let Some((body, end)) = scan_body(bytes, i) {
                     return (Tok::Ref(RefTok { sheet: None, prefix_len: 0, body }), end);
                 }
-            }
             if c.is_ascii_digit() || (c == '.' && bytes.get(i + 1).is_some_and(|b| b.is_ascii_digit())) {
                 return lex_number(s, i);
             }

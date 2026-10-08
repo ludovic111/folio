@@ -398,7 +398,7 @@ impl Editor {
                 let act = move |f: fn(&mut DocView, &mut Context<DocView>)| {
                     let d = d1.clone();
                     move |_: &gpui::ClickEvent, w: &mut Window, cx: &mut App| {
-                        d.update(cx, |v, cx| f(v, cx));
+                        d.update(cx, f);
                         crate::views::focus(&d, w, cx);
                     }
                 };
@@ -473,7 +473,7 @@ impl Editor {
                 let sheet_do = move |f: fn(&mut SheetView, &mut Context<SheetView>)| {
                     let sv = sv2.clone();
                     move |_: &gpui::ClickEvent, w: &mut Window, cx: &mut App| {
-                        sv.update(cx, |v, cx| f(v, cx));
+                        sv.update(cx, f);
                         crate::views::focus(&sv, w, cx);
                     }
                 };

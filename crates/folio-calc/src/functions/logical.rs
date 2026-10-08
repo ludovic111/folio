@@ -99,7 +99,7 @@ fn if_(ctx: &Ctx, args: &[Expr]) -> R<Ev> {
 }
 
 fn ifs(ctx: &Ctx, args: &[Expr]) -> R<Ev> {
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         return Err(ErrorKind::Value);
     }
     for pair in args.chunks(2) {

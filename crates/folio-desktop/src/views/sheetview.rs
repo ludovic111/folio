@@ -95,10 +95,6 @@ impl SheetView {
         Self { store, focus: cx.focus_handle(), cell_input, fx, editing: false, bounds: Rc::new(Cell::new(Bounds::default())), scroll: (0.0, 0.0), dragging: None, shown: None, cut_source: None, _subs: subs }
     }
 
-    pub fn focus(&self, window: &mut Window, cx: &mut App) {
-        window.focus(&self.focus, cx);
-    }
-
     fn ctx(&self, cx: &App) -> Option<Ctx> {
         let s = self.store.read(cx);
         let doc = s.doc.clone()?;
@@ -595,7 +591,7 @@ impl EntityInputHandler for SheetView {
 }
 
 impl Render for SheetView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_fx(cx);
         let t = cx.theme().clone();
         let Some(c) = self.ctx(cx) else { return div().into_any_element() };

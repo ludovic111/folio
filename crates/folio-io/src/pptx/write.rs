@@ -644,7 +644,7 @@ fn layout_shapes(layout: SlideLayout, size: [f32; 2], theme: &DeckTheme) -> Stri
             VAlign::Bottom => "b",
         };
         let face = font_name(if title { &theme.heading_font } else { &theme.body_font });
-        let color = if kind == "subtitle" { format!(r#"<a:solidFill><a:schemeClr val="tx1"><a:alpha val="62000"/></a:schemeClr></a:solidFill>"#) } else { r#"<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>"#.to_string() };
+        let color = if kind == "subtitle" { r#"<a:solidFill><a:schemeClr val="tx1"><a:alpha val="62000"/></a:schemeClr></a:solidFill>"#.to_string() } else { r#"<a:solidFill><a:schemeClr val="tx1"/></a:solidFill>"#.to_string() };
         let _ = write!(
             out,
             r#"<p:sp><p:nvSpPr><p:cNvPr id="{}" name="{}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>{}</p:nvSpPr><p:spPr>{}</p:spPr><p:txBody><a:bodyPr lIns="{INSET}" tIns="{INSET}" rIns="{INSET}" bIns="{INSET}" anchor="{anchor}"><a:normAutofit/></a:bodyPr><a:lstStyle><a:lvl1pPr><a:defRPr sz="{}"{}>{color}<a:latin typeface="{}"/></a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:r><a:rPr lang="en-US"/><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>"#,

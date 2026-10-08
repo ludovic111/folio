@@ -475,7 +475,7 @@ impl Dialogs {
                     .p(px(18.))
                     .child(
                         div().flex().flex_col().gap(px(8.))
-                            .child(div().flex().justify_between().child(caps(&format!("Installed · {}", installed.len()), cx)).child(Button::new("rescan", "Rescan").with_icon("refresh-cw").small().on_click(cx.listener(|d, _, _, cx| {
+                            .child(div().flex().justify_between().child(caps(format!("Installed · {}", installed.len()), cx)).child(Button::new("rescan", "Rescan").with_icon("refresh-cw").small().on_click(cx.listener(|d, _, _, cx| {
                                 d.store.update(cx, |s, cx| s.run("plugin.rescan", json!({}), cx));
                                 d.load("plugin.list", json!({}), cx);
                             }))))
@@ -514,7 +514,7 @@ impl Dialogs {
                             .child(div().flex().items_center().gap(px(10.)).child(icon("mark").size(px(20.))).child(div().flex().flex_col().child(div().font_weight(FontWeight::MEDIUM).child("folio plugins (Rust, folio-plugin SDK)")).child(div().font_family(MONO).text_size(px(sz::XS)).text_color(t.text_3).child("~/.lsuite/plugins/folio/<id>/ · plugin.toml + .dylib / .so / .dll"))))
                             .child(div().text_size(px(sz::SM)).text_color(t.text_3).child("Office add-ins, VBA macros and Google Apps Script don't run in folio: their documents open, their code doesn't.")),
                     )
-                    .child(div().flex().flex_col().gap(px(4.)).child(caps(&format!("Stock · {}", stock.len()), cx)).children(stock_rows)),
+                    .child(div().flex().flex_col().gap(px(4.)).child(caps(format!("Stock · {}", stock.len()), cx)).children(stock_rows)),
             )
             .into_any_element()
     }

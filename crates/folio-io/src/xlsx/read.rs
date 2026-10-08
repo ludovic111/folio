@@ -17,14 +17,13 @@ fn color_of(el: &El, theme: &[String]) -> Option<String> {
         hex_color(rgb)?
     } else if let Some(t) = el.attr("theme") {
         theme.get(t.parse::<usize>().ok()?)?.clone()
-    } else if let Some(i) = el.attr("indexed") {
+    } else {
+        let i = el.attr("indexed")?;
         let i: usize = i.parse().ok()?;
         match i {
             64 => return None, // system foreground: automatic
             _ => INDEXED.get(i)?.to_string(),
         }
-    } else {
-        return None;
     };
     Some(match el.attr_f64("tint") {
         Some(t) if t != 0.0 => apply_tint(&base, t),
