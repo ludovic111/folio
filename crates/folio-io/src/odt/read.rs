@@ -86,7 +86,6 @@ impl TProps {
 
 #[derive(Clone, Default)]
 struct StyleDef {
-    family: String,
     parent: Option<String>,
     display: String,
     outline: Option<u8>,
@@ -197,7 +196,6 @@ impl Conv {
                 "style:style" => {
                     let Some(name) = s.attr("style:name") else { continue };
                     let mut d = StyleDef {
-                        family: s.attr("style:family").unwrap_or("").to_string(),
                         parent: s.attr("style:parent-style-name").map(str::to_string),
                         display: s.attr("style:display-name").map(str::to_string).unwrap_or_else(|| decode_name(name)),
                         outline: s.attr("style:default-outline-level").and_then(|v| v.parse().ok()),
@@ -605,7 +603,7 @@ impl Conv {
                 let comment = Comment { id: id.clone(), author, text: texts.join("\n"), at, resolved, replies: vec![] };
                 // A reply (LibreOffice writes the parent's name).
                 if let Some(parent) = e.attr("loext:parent-name").or(e.attr("office:parent-name"))
-                    && let Some(&(_, ref pid)) = self.open_comments.iter().find(|(n, _)| n == parent).or(None)
+                    && let Some((_, pid)) = self.open_comments.iter().find(|(n, _)| n == parent).or(None)
                     && let Some(pc) = self.comments.iter_mut().find(|c| c.id == *pid)
                 {
                     pc.replies.push(Reply { author: comment.author, text: comment.text, at: comment.at });

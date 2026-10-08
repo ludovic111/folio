@@ -68,6 +68,8 @@ pub struct Theme {
     pub line: Hsla,
     pub line_strong: Hsla,
     pub danger: Hsla,
+    /// The design system's full palette, as in kimchi; folio doesn't use every entry.
+    #[allow(dead_code)]
     pub warning: Hsla,
     pub success: Hsla,
 
@@ -116,7 +118,9 @@ pub mod size {
     pub const R_XS: f32 = 0.0;
     pub const R_SM: f32 = 0.0;
     pub const R_MD: f32 = 0.0;
+    #[allow(dead_code)]
     pub const R_LG: f32 = 0.0;
+    #[allow(dead_code)]
     pub const R_XL: f32 = 0.0;
 }
 

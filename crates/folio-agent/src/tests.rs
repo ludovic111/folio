@@ -192,7 +192,7 @@ async fn anthropic_tool_call_lands_in_the_file_and_the_run_reverts() {
     assert_eq!(requests[0].headers.get("x-api-key").unwrap(), "sk-ant-test");
     assert!(requests[0].headers.get("authorization").is_none(), "the Anthropic API gets the key once");
     let first: Value = serde_json::from_slice(&requests[0].body).unwrap();
-    assert!(first["system"].as_str().unwrap().contains("file_overview"), "the agent is told to read the overview first");
+    assert!(first["system"].as_str().unwrap().contains("file.overview"), "the agent is told to read the overview first");
     let second: Value = serde_json::from_slice(&requests[1].body).unwrap();
     assert_eq!(second["messages"][1]["content"][0], json!({ "type": "thinking", "thinking": "", "signature": "sig-abc" }));
     assert_eq!(second["messages"][1]["content"][2]["input"]["at"], "A1");
@@ -279,7 +279,8 @@ async fn ollama_runs_tools_locally() {
     let events = collect(&mut run).await;
     assert!(matches!(events.last(), Some(AgentEvent::Done { changes: 1, summary, .. }) if summary == "It shows 42."), "{events:#?}");
     assert_eq!(cells(&s).await[1][1], json!(42.0));
-    let requests = server.received_requests().await.unwrap();
+    // Only the chat requests (the run also asks /api/show whether the model sees pictures).
+    let requests: Vec<_> = server.received_requests().await.unwrap().into_iter().filter(|r| r.url.path() == "/api/chat").collect();
     let body: Value = serde_json::from_slice(&requests[1].body).unwrap();
     let tool = body["messages"].as_array().unwrap().iter().find(|m| m["role"] == "tool").unwrap();
     assert_eq!(tool["tool_name"], "sheet_set");
@@ -992,4 +993,136 @@ async fn live_lsuite_demo_turn() {
     eprintln!("end: {}", serde_json::to_string(events.last().unwrap()).unwrap());
     assert!(matches!(events.last(), Some(AgentEvent::Done { summary, .. }) if summary == &reply && !reply.is_empty()), "{events:#?}");
     sign_out();
+}
+
+// ---- the harness: pictures and the live context ---------------------------------------------
+
+/// A sheet with a small table, for looks.
+async fn with_table(dir: &std::path::Path) -> Arc<Session> {
+    let s = with_sheet(dir).await;
+    folio_control::call(&s, Source::Window, "sheet.setRange", json!({ "at": "A1", "values": [["Item", "Cost"], ["Rent", 1200], ["Food", 300], ["Total", "=SUM(B2:B3)"]] })).await.unwrap();
+    s
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn anthropic_sees_what_harness_look_draws() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = with_table(dir.path()).await;
+    s.set_secret("anthropic", Some("sk-ant-test")).unwrap();
+    let server = mock("/v1/messages", "text/event-stream", vec![anthropic_tool("toolu_1", "harness_look", "{\"range\": \"A1:B4\"}"), anthropic_text("The table reads well.")]).await;
+    let config = AgentConfig { base_url: server.uri(), ..AgentConfig::new(ProviderKind::Anthropic) };
+    let mut run = Agent::start(&s, config, "Look at the table", Conversation::new());
+    let events = collect(&mut run).await;
+    assert!(matches!(events.last(), Some(AgentEvent::Done { .. })), "{events:#?}");
+
+    let requests = server.received_requests().await.unwrap();
+    let first: Value = serde_json::from_slice(&requests[0].body).unwrap();
+    // The brief is the system prompt, with the skills' index.
+    let system = first["system"].as_str().unwrap();
+    assert!(system.contains("Finish routine") && system.contains("`budget-model`") && system.contains("In the Agent panel"), "{system}");
+    let asked = first["messages"][0]["content"][0]["text"].as_str().unwrap();
+    assert!(asked.starts_with("<context>\n") && asked.contains("Pages: \"Sheet\" (sheet, A1:B4, 1 formula)") && asked.ends_with("</context>\n\nLook at the table"), "{asked}");
+    let second: Value = serde_json::from_slice(&requests[1].body).unwrap();
+    let result = &second["messages"][2]["content"][0];
+    assert_eq!(result["type"], "tool_result");
+    let text = result["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("\"kind\":\"sheet\"") && text.ends_with("The picture is attached."), "{text}");
+    let image = &result["content"][1];
+    assert_eq!((image["type"].as_str(), image["source"]["media_type"].as_str()), (Some("image"), Some("image/png")));
+    let png = folio_control::vision::encode(&decode_b64(image["source"]["data"].as_str().unwrap())).unwrap();
+    assert!(png.width > 200 && png.height > 80, "{}×{}", png.width, png.height);
+    // The picture stays in the thread, inside its result, for the next turn.
+    let conv = run.conversation();
+    assert!(conv.messages[2].parts.iter().any(|p| matches!(p, Part::Image { call: Some(c), .. } if c == "toolu_1")));
+}
+
+fn decode_b64(s: &str) -> Vec<u8> {
+    // A small decoder, so the tests need no base64 crate of their own.
+    let table: Vec<u8> = (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9').chain(*b"+/").collect();
+    let mut out = vec![];
+    let (mut acc, mut bits) = (0u32, 0);
+    for c in s.bytes().filter(|c| *c != b'=') {
+        let v = table.iter().position(|t| *t == c).expect("base64") as u32;
+        acc = (acc << 6) | v;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    out
+}
+
+/// Answers in order with (status, body); the last one repeats.
+struct Replies(Vec<(u16, String)>, AtomicUsize);
+
+impl Respond for Replies {
+    fn respond(&self, _: &Request) -> ResponseTemplate {
+        let i = self.1.fetch_add(1, Ordering::SeqCst).min(self.0.len() - 1);
+        let (status, body) = &self.0[i];
+        ResponseTemplate::new(*status).insert_header("content-type", if *status == 200 { "text/event-stream" } else { "application/json" }).set_body_string(body.clone())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_compatible_server_without_vision_gets_no_pictures() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = with_table(dir.path()).await;
+    let call = openai_sse(&[
+        json!({ "choices": [{ "index": 0, "delta": { "tool_calls": [{ "index": 0, "id": "call_1", "function": { "name": "harness_look", "arguments": "{}" } }] } }] }),
+        json!({ "choices": [{ "index": 0, "delta": {}, "finish_reason": "tool_calls" }] }),
+    ]);
+    let answer = openai_sse(&[json!({ "choices": [{ "index": 0, "delta": { "content": "Looks fine." } }] }), json!({ "choices": [{ "index": 0, "delta": {}, "finish_reason": "stop" }] })]);
+    let refusal = json!({ "error": { "message": "This model does not support image input." } }).to_string();
+    let server = MockServer::start().await;
+    Mock::given(method("POST")).and(path("/v1/chat/completions")).respond_with(Replies(vec![(200, call), (400, refusal), (200, answer)], AtomicUsize::new(0))).mount(&server).await;
+    let config = AgentConfig { base_url: format!("{}/v1", server.uri()), ..AgentConfig::new(ProviderKind::OpenAi) };
+    let mut run = Agent::start(&s, config, "Look at it", Conversation::new());
+    let events = collect(&mut run).await;
+    assert!(matches!(events.last(), Some(AgentEvent::Done { summary, .. }) if summary == "Looks fine."), "{events:#?}");
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 3);
+    let with: Value = serde_json::from_slice(&requests[1].body).unwrap();
+    let pictures = with["messages"].as_array().unwrap().iter().find(|m| m["role"] == "user" && m["content"].is_array()).expect("the picture follows the tool answer");
+    assert!(pictures["content"][1]["image_url"]["url"].as_str().unwrap().starts_with("data:image/png;base64,"));
+    let without: Value = serde_json::from_slice(&requests[2].body).unwrap();
+    assert!(!without.to_string().contains("image_url"), "sent again without the picture");
+    assert!(without.to_string().contains("earlier picture is not shown again"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_live_context_follows_each_step() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = with_table(dir.path()).await;
+    s.set_secret("anthropic", Some("sk-ant-test")).unwrap();
+    let server = mock(
+        "/v1/messages",
+        "text/event-stream",
+        vec![
+            anthropic_tool("toolu_1", "sheet_set", "{\"cell\": \"B3\", \"value\": \"=1/0\"}"),
+            anthropic_tool("toolu_2", "sheet_read", "{}"),
+            anthropic_text("Done."),
+        ],
+    )
+    .await;
+    let config = AgentConfig { base_url: server.uri(), ..AgentConfig::new(ProviderKind::Anthropic) };
+    let mut run = Agent::start(&s, config, "Break it", Conversation::new());
+    let events = collect(&mut run).await;
+    assert!(matches!(events.last(), Some(AgentEvent::Done { .. })), "{events:#?}");
+    let requests = server.received_requests().await.unwrap();
+    // After the edit, the step's results carry a fresh context with the new problem.
+    let second: Value = serde_json::from_slice(&requests[1].body).unwrap();
+    let after = second["messages"][2]["content"].as_array().unwrap();
+    let context = after.iter().find_map(|b| b["text"].as_str().filter(|t| t.starts_with("<context>"))).expect("a context block after the results");
+    assert!(context.contains("Open problems: 2 errors"), "{context}");
+    // Nothing changed in the read-only step: no block repeated.
+    let third: Value = serde_json::from_slice(&requests[2].body).unwrap();
+    let after_read = third["messages"][4]["content"].as_array().unwrap();
+    assert!(!after_read.iter().any(|b| b["text"].as_str().is_some_and(|t| t.starts_with("<context>"))), "{after_read:#?}");
+    // The person's own change between steps is named.
+    let since = folio_control::harness::context::context(&s, None).seq;
+    folio_control::call(&s, Source::Window, "sheet.set", json!({ "cell": "C1", "value": "Note" })).await.unwrap();
+    let c = folio_control::harness::context::context(&s, Some(since));
+    assert!(c.text().contains("The person changed the file since your last step (sheet.set)"), "{}", c.text());
 }

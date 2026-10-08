@@ -286,11 +286,15 @@ pub fn allowed(session: &Session, source: Source, spec: &Spec) -> CmdResult<()> 
 }
 
 /// Values a model wrote as JSON text where JSON was expected (`"[1, 2]"`, `"{\"a\": 1}"`, an
-/// array of `"0.5"` or of objects as strings) become what they say. Anything else is left for
+/// array of `"0.5"` or of objects as strings) become what they say, and a number where text is
+/// expected becomes its text (`slide: 2` for "its 1-based number"). Anything else is left for
 /// [`validate`] to explain.
 pub fn coerce(spec: &Spec, params: &mut Value) {
     let Some(map) = params.as_object_mut() else { return };
     let parse = |v: &Value, kind: Kind| -> Option<Value> {
+        if kind == Kind::String && v.is_number() {
+            return Some(Value::String(v.to_string()));
+        }
         let text = v.as_str()?.trim();
         let parsed = match kind {
             Kind::Number | Kind::Integer => text.parse::<f64>().ok().filter(|f| f.is_finite()).map(Value::from)?,

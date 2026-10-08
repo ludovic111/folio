@@ -378,7 +378,7 @@ fn each_match(ctx: &Ctx, pairs: &[(&Ev, Criterion)], f: &mut dyn FnMut(usize, us
 
 /// The `(range, criterion)` pairs of a COUNTIFS-style argument list.
 fn pairs<'a>(ctx: &Ctx, args: &'a [Ev]) -> R<Vec<(&'a Ev, Criterion)>> {
-    if args.is_empty() || args.len() % 2 != 0 {
+    if args.is_empty() || !args.len().is_multiple_of(2) {
         return Err(ErrorKind::Value);
     }
     Ok(args.chunks(2).map(|p| (&p[0], Criterion::new(&ctx.scalar(&p[1])))).collect())

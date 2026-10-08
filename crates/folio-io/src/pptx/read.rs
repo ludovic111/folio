@@ -910,7 +910,7 @@ pub fn import(bytes: &[u8], title: &str) -> Result<Imported, String> {
             reader.shapes(&cx, tree, Map::ID, &mut shapes);
         }
         let bg = background(&scheme, Some(&sx)).or_else(|| background(&scheme, layout));
-        if matches!(sx.path(&["cSld", "bg", "bgPr"]).and_then(|b| b.child("blipFill")), Some(_)) {
+        if sx.path(&["cSld", "bg", "bgPr"]).and_then(|b| b.child("blipFill")).is_some() {
             reader.counts.image_bg += 1;
         }
         let notes = rels.iter().find(|r| r.kind == "notesSlide").and_then(|r| reader.pkg.xml(&r.target)).map(|n| notes_text(&n)).unwrap_or_default();

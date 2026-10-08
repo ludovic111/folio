@@ -71,10 +71,6 @@ impl DeckView {
         Self { store, focus: cx.focus_handle(), notes, bounds: Rc::new(Cell::new(Bounds::default())), drag: None, notes_for: None, _subs: subs }
     }
 
-    pub fn focus(&self, window: &mut Window, cx: &mut App) {
-        window.focus(&self.focus, cx);
-    }
-
     fn ctx(&self, cx: &App) -> Option<Ctx> {
         let s = self.store.read(cx);
         let doc = s.doc.clone()?;

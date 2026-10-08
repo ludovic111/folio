@@ -3,13 +3,13 @@
 </p>
 <p align="center">
   <a href="https://lsuite.xyz/folio">Website</a> ·
-  <a href="https://lsuite.xyz/folio/download">Download</a> ·
+  <a href="https://lsuite.xyz/launcher">Get it in the lsuite app</a> ·
   <a href="https://lsuite.xyz/folio/support">Support</a>
 </p>
 
 <h1 align="center">folio</h1>
 
-<p align="center"><strong>Documents, sheets and slides in one file.</strong> (beta)<br/>
+<p align="center"><strong>Documents, sheets and slides in one file.</strong> (beta, Linux; macOS and Windows coming soon)<br/>
 Native Rust app (GPUI) · opens and writes Word, Excel, PowerPoint and OpenDocument · drivable by your AI (MCP, CLI, built-in agent).<br/>
 Part of <a href="https://lsuite.xyz">lsuite</a>, the free, open-source creative suite your AI can drive.</p>
 
@@ -55,22 +55,17 @@ chrome; the paper stays white.
 
 ## Install
 
-Download the file for your computer from the
-[latest release](https://github.com/ludovic111/folio/releases/latest):
+folio is in beta for **Linux** (x86_64; an AppImage or a `.deb`). **macOS and Windows are coming
+soon.**
 
-| System | File |
-| --- | --- |
-| macOS, Apple silicon | `folio-macos-arm64.dmg` |
-| macOS, Intel | `folio-macos-x86_64.dmg` |
-| Windows | `folio-windows-x86_64.exe` (installer) or `folio-windows-x86_64.zip` (the same files, to run from any folder) |
-| Linux | `folio-linux-x86_64.AppImage` or `folio-linux-x86_64.deb` |
+Get folio in the [lsuite app](https://lsuite.xyz/launcher), which installs and updates the five
+lsuite apps with a free lsuite account. folio stays free and open source: you can also build it
+from source (below).
 
-Settings → Updates checks GitHub, verifies downloads with the embedded release key, and stages an
-update for restart. Automatic installation is opt-in. macOS bundles and Linux AppImages update in
-place with a rollback copy; Windows uses the signed installer. Managed/portable installations link
-to downloads instead.
-
-Or install it with the [lsuite launcher](https://lsuite.xyz/launcher).
+folio checks for updates through lsuite with the account the lsuite app signed in, verifies every
+download with the embedded release key, and stages the update for restart (automatic installation
+is opt-in). The AppImage updates in place with a rollback copy; the `.deb` is updated by the lsuite
+app. Signed out, Settings → Updates asks you to sign in in the lsuite app.
 
 ## Drive it from AI and scripts
 
@@ -79,15 +74,20 @@ Everything you can do in the window is a named command (`doc.write`, `sheet.setR
 `folio-cli` and `folio-mcp` all go through the same registry and share one undo history.
 
 ```bash
-claude mcp add folio -- /Applications/folio.app/Contents/MacOS/folio-mcp --live    # Claude Code
+claude mcp add folio -- folio-mcp --live                                            # Claude Code
 folio-cli file.overview                                                             # the running app
 folio-cli --file plan.folio doc.write --markdown "# Plan\n\nShip on **Friday**."    # a file
 folio-cli convert report.docx report.pdf
 ```
 
-The **Agent** panel (⌘J) runs **lsuite AI** with no setup once you sign in, or the model you
+The **Agent** panel (Ctrl+J) runs **lsuite AI** with no setup once you sign in, or the model you
 already have: Claude Code, Codex, an Anthropic, OpenAI, OpenRouter or Mistral key, or a local model
-(Ollama, LM Studio). Details: [docs/AI_CONTROL.md](docs/AI_CONTROL.md).
+(Ollama, LM Studio). Every agent, the built-in one or yours over MCP, gets folio's **harness**: an
+office expert's brief, twelve skills (a report from notes, a budget, a deck from a document…), the
+live state of the file before every step, pictures of the pages, slides and sheets it made
+(`harness.look`) and objective checks (`harness.check`) it runs before saying it is done.
+`folio-cli --file report.folio agent "…"` runs the built-in agent without the window, and
+[`evals/`](evals) scores it on office jobs. Details: [docs/AI_CONTROL.md](docs/AI_CONTROL.md).
 
 ## Plugins
 
@@ -137,20 +137,23 @@ Rust 1.92 or later. Linux needs GPUI's usual libraries (the list is in
 cargo run -p folio                      # the window
 cargo run -p folio-cli -- --help
 cargo test --workspace
-scripts/bundle-macos.sh                 # folio.app and a .dmg (on a Mac)
+scripts/bundle-linux.sh                 # the AppImage and the .deb
 ```
 
-`scripts/bundle-windows.sh` and `scripts/bundle-linux.sh` make the Windows and Linux packages.
+The macOS and Windows code and scripts stay in the source (`scripts/bundle-macos.sh`,
+`scripts/bundle-windows.sh`), but they are not built or shipped while folio is in beta: they are
+coming soon.
 
 ### Signed releases
 
-The suite's Apple credentials stay in the kimchi repository. Maintainers dispatch
-`ludovic111/kimchi`'s `suite-build.yml` with `app=folio` and the full, published commit SHA.
-Download the four platform artifacts, run `folio-release manifest <directory> --version X.Y.Z
---base-url https://github.com/ludovic111/folio/releases/download/vX.Y.Z --out <directory>/latest.json`,
-and attach the verified archives, signatures, installers and manifest to the release. The separate
-manual release workflow requires its own Apple credentials and updater key; it refuses unsigned
-release builds. Keep private signing keys outside the repository.
+Linux only for now. Maintainers dispatch `ludovic111/kimchi`'s `suite-build.yml` with `app=folio`
+and the full, published commit SHA, then publish the run's signed Linux artifact to lsuite's build
+store with `scripts/publish-build.sh X.Y.Z <run-id>` (it needs only the run's Linux job to have
+succeeded, takes only the Linux files, checks every signature, writes a Linux-only `latest.json` with
+`folio-release manifest` and `SHA256SUMS`, and creates `folio-vX.Y.Z` in `ludovic111/lsuite-builds`;
+`DRY_RUN=1` stops before publishing). `.github/workflows/release.yml` makes a draft release instead,
+published the same way with `scripts/publish-build.sh X.Y.Z`. Keep private signing keys outside the
+repository.
 
 ## License
 

@@ -66,15 +66,49 @@ Rules that keep it working:
 folio is part of **lsuite** with ryolune (music), kimchi (video), zenith (code) and nori (images); its page
 is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `design/DESIGN.md`.
 
+- **Linux only while lsuite is in beta** (owner, 2026-10-08): macOS and Windows are "coming soon". Their
+  code and scripts stay in the source, but CI (`ci.yml`), `release.yml` and `publish-build.sh` build and
+  ship Linux only (latest.json lists only Linux platforms); kimchi's `suite-build.yml` is being made
+  Linux only too. README and the CHANGELOG say so.
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
       through their CLIs (best effort: nori's export command is looked up from its `app.commands`).
 - [x] lsuite AI: `account.*`, the shared `~/.lsuite/account.json`, loopback sign-in, first in the agent's
       providers and in the first-run setup.
 - [x] Design system v2, one-ink mark and icon (`scripts/gen-mark.py`).
-- [ ] Signed auto-update: only `app.checkUpdates` (looks at GitHub Releases); no in-app install yet.
-- [ ] Release binaries: the workflows exist (`.github/workflows/release.yml`) but nothing is published;
-      the site's download patterns expect `folio-macos-arm64.dmg` etc. (see `scripts/bundle-macos.sh`).
+- [x] Signed auto-update (`update.rs`), through lsuite (DISTRIBUTION.md, 0.2.0): reads
+      `<server>/api/apps/folio/latest.json` with `Authorization: Bearer` from `~/.lsuite/account.json`
+      (`LSUITE_HOME`; server `LSUITE_ACCOUNT_SERVER`, else the account's, else lsuite.xyz); the token goes
+      only to that server (the file route's redirect drops it); signed out → `sign_in` status "Sign in to
+      lsuite (in the lsuite app) to get updates"; `FOLIO_UPDATE_URL` still overrides (no token). Tested
+      against a fake server (`update.rs` tests).
+- [x] Releases: `release.yml` makes a draft; folio's suite builds come from kimchi's `suite-build.yml`
+      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's Linux artifact (its Linux
+      job must have succeeded; the others may be cancelled) or the draft's Linux files to
+      `ludovic111/lsuite-builds` as `folio-v<version>` with latest.json (folio-release) and SHA256SUMS.
+- [x] **Agent harness** (HARNESS.md, 0.2.0), `folio-control/src/harness/`:
+  1. Brief: `brief.md` + the skills' index = `harness.brief` = the built-in agent's system prompt
+     (`folio-agent` `system_prompt()`) = `folio-mcp` `instructions` (shortened for the built-in agent,
+     which has it already). A test keeps it 800–1,500 words and checks every command it names exists.
+  2. Skills: 12 in `harness/skills/*.md` (`# Title`, `When:`, `## Steps`, `## Checks`); `harness.skills`,
+     `harness.skill`; MCP prompts `skill-<name>` and resources `folio://skills/<name>`.
+  3. Live context: `harness/context.rs` (`glance` for the panel, `context` = glance + page sizes + open
+     problems + the person's changes since `seq`); the API loop appends a `Part::Context` after a step's
+     results when it changed; `folio-mcp` appends notes (saved path, `<context>` when it changed, the
+     finish-routine reminder after an edit until `harness.check`/`harness.look`) to the text AND to
+     `structuredContent.harnessNotes`: Claude Code shows `structuredContent` instead of the text when
+     both exist. Results with pictures have no `structuredContent`. Test: `folio-mcp` `harness_notes_…`.
+  4. Eyes: `harness.look` (`harness/look.rs`: `page_png`, `slide_png`, folio-layout's new `sheet_png`)
+     → `<data>/looks/`; `vision.rs` turns `harness.look`/`ui.screenshot` paths into pictures:
+     `Part::Image` per provider (kimchi's approach) and MCP image content.
+  5. Checks: `harness.check` (`harness/check.rs`); finish routine in the brief and every skill.
+  6. One undo per turn: the run's checkpoint + "Revert this run" (unchanged).
+  7. Evals: `evals/run.py` (11 jobs in `evals/jobs.py`, `folio-cli --file … agent` headless with Claude
+     Code by default), `evals/RESULTS.md`. Run before each release; a lower pass rate doesn't ship.
+- [ ] Harness gaps: the 0.2.0 release run passed 11/11 with Opus (2026-10-08, `--model opus`; two deck
+      jobs re-run after `slide: 1` as a number was accepted; RESULTS.md). `harness.look`
+      can't show the window itself on Linux (`ui.screenshot` is macOS only); no named ranges (the brief
+      says so); `default printed page` for a look is page 1, not the caret's page.
 
 ## Verified local beta (2026-10-07)
 

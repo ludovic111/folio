@@ -56,10 +56,6 @@ impl Inspector {
         Self { store, header, footer, shape_fields, synced: None, _subs: subs }
     }
 
-    fn run(&self, cmd: &str, p: Value, cx: &mut Context<Self>) {
-        self.store.update(cx, |s, cx| s.run(cmd, p, cx));
-    }
-
     /// Keeps the fields in step with the document (not while one is being typed in).
     fn sync(&mut self, window: &Window, doc: &Document, pi: usize, cx: &mut Context<Self>) {
         let version = self.store.read(cx).version;

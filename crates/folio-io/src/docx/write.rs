@@ -609,12 +609,12 @@ impl<'a> Writer<'a> {
             if ri == 0 && header {
                 out.push_str("<w:trPr><w:tblHeader/></w:trPr>");
             }
-            for ci in 0..cols {
+            for (ci, width) in grid.iter().enumerate().take(cols) {
                 let empty = CellOut { lines: vec![vec![]], fill: None, align: Align::Left };
                 let cell = row.get(ci).unwrap_or(&empty);
                 let band = banded && !(header && ri == 0) && (ri + usize::from(!header)) % 2 == 0;
                 let fill = cell.fill.as_deref().and_then(hex6).or(if band { Some("F2F2F2".into()) } else { None });
-                let _ = write!(out, "<w:tc><w:tcPr><w:tcW w:w=\"{}\" w:type=\"dxa\"/>", grid[ci]);
+                let _ = write!(out, "<w:tc><w:tcPr><w:tcW w:w=\"{}\" w:type=\"dxa\"/>", width);
                 if let Some(f) = fill {
                     let _ = write!(out, "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{f}\"/>");
                 }

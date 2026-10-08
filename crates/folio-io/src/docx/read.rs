@@ -8,7 +8,6 @@ use folio_core::{Align, Block, Document, Id, ListKind, PageKind, ParaStyle, Para
 use super::xml::{El, Node, Package, family_of_font, hex_color};
 use crate::Imported;
 
-const REL_IMAGE: &str = "/image";
 const REL_HYPERLINK: &str = "/hyperlink";
 
 struct Rel {
@@ -229,7 +228,6 @@ struct PProps {
     style: ParaStyle,
     align: Option<Align>,
     num: Option<(String, u8)>,
-    outline: Option<u8>,
     /// Character formatting of the paragraph style (layered on document defaults).
     rprops: RProps,
     /// What counts as "no direct formatting" for runs of this paragraph.
@@ -877,7 +875,7 @@ impl Conv {
         {
             let width = p.find("v:shape").and_then(|s| s.attr("style")).and_then(|st| css_length(st, "width"));
             let alt = p.find("v:shape").and_then(|s| s.attr("alt")).unwrap_or("").to_string();
-            self.picture(b, rels, &rid.to_string(), width, alt, false);
+            self.picture(b, rels, rid, width, alt, false);
             return;
         }
         if let Some(tb) = p.find("w:txbxContent") {

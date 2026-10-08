@@ -45,8 +45,9 @@ pub(super) fn wire(messages: &[Message]) -> Vec<Value> {
                 .parts
                 .iter()
                 .filter_map(|p| match p {
-                    Part::Text { text } if text.is_empty() => None,
-                    Part::Text { text } => Some(json!({ "text": text })),
+                    Part::Text { text } | Part::Context { text } if text.is_empty() => None,
+                    Part::Text { text } | Part::Context { text } => Some(json!({ "text": text })),
+                    Part::Image { media_type, data, .. } => Some(json!({ "inlineData": { "mimeType": media_type, "data": data } })),
                     Part::ToolUse { id, name, input } => Some(with_id(json!({ "functionCall": { "name": name, "args": input } }), "functionCall", id)),
                     Part::ToolResult { id, name, output, is_error } => {
                         let response = if *is_error { json!({ "error": output }) } else { json!({ "result": output }) };

@@ -1122,6 +1122,52 @@ Undo every change made after a checkpoint (an agent's whole run). _(changes thin
 | --- | --- | --- | --- |
 | `checkpoint` | integer | required | From history.checkpoint. |
 
+## harness
+
+### `harness.brief`
+
+The expert brief every agent working in folio follows (Markdown): the file's model, the quality bar for documents, sheets and decks, the usual mistakes, the finish routine and the index of skills. The built-in agent's instructions and folio-mcp's are this text. _(read only)_
+
+### `harness.skills`
+
+The skills: playbooks for common office jobs (a report from notes, a budget, a deck from a document, fixing formula errors…), as [{name, title, when}]. _(read only)_
+
+### `harness.skill`
+
+One skill's playbook (Markdown): when to use it, the steps with the exact commands, and the checks that prove it worked. _(read only)_
+
+| Parameter | Type | | Description |
+| --- | --- | --- | --- |
+| `name` | string | required | The skill's name from harness.skills, e.g. budget-model. |
+
+### `harness.context`
+
+The live context an agent gets before each model step: the file and its pages with their sizes, the page shown and the selection, open problems (harness.check), and what the person changed since `since`. _(read only)_
+
+| Parameter | Type | | Description |
+| --- | --- | --- | --- |
+| `since` | integer |  | The seq of the last context you got: the person's changes after it are listed. |
+
+### `harness.look`
+
+Look at the work: a picture of a document's printed page, a slide, or a sheet range with its charts, drawn exactly as the window and the PDF draw them (a PNG the model sees; its path is in the answer), with its numbers (pages, words, headings; slide text and overflow; column sums and errors) and the problems harness.check finds on that page. _(read only)_
+
+| Parameter | Type | | Description |
+| --- | --- | --- | --- |
+| `page` | string |  | Page id, name or 1-based number (page.list). Defaults to the page the window shows, else the first page of the right kind. |
+| `pageNumber` | integer |  | Documents: the printed page, from 1 (default 1). |
+| `slide` | string |  | Slide: its id, or its 1-based number. Defaults to the slide the window shows, else the first. |
+| `range` | string |  | Sheets: the cells to draw, A1 notation (default: the used range and the charts over it). |
+| `width` | integer |  | Pages and slides: the picture's width in pixels (default 1200, at most 1568). |
+
+### `harness.check`
+
+Objective checks before saying a job is done: formula errors (the cell causing them first), totals that leave out rows, empty cells inside tables and summed ranges, columns too narrow for their numbers, skipped heading levels, bold lines posing as headings, placeholder text, text overflowing slide boxes, shapes off the slide, empty titles, broken live links. Errors and warnings, each with where and how to fix it. _(read only)_
+
+| Parameter | Type | | Description |
+| --- | --- | --- | --- |
+| `page` | string |  | Only this page (id, name or 1-based number); default: every page. |
+
 ## handoff
 
 ### `handoff.apps`
@@ -1399,7 +1445,7 @@ Finish (or skip) the first-run setup with the choices made. _(changes things)_
 
 ### `app.checkUpdates`
 
-Look on GitHub Releases for a newer folio and say where to get it. _(read only)_
+Ask lsuite (with the lsuite account signed in on this computer) whether a newer folio is out, and say how to get it. Signed out, it says to sign in in the lsuite app. _(read only)_
 
 ### `app.updateStatus`
 

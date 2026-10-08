@@ -7,3 +7,6 @@ target-*/
 *.tmp
 .DS_Store
 .claude/
+/dist-publish/
+evals/results/
+__pycache__/

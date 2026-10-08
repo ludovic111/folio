@@ -182,7 +182,7 @@ pub struct Invocation {
 }
 
 /// Commands of the CLI itself rather than the registry. Their arguments are kept as given.
-pub const TOOLS: &[&str] = &["commands", "help", "docs", "batch", "doctor", "mcp-config", "convert"];
+pub const TOOLS: &[&str] = &["commands", "help", "docs", "batch", "doctor", "mcp-config", "convert", "agent"];
 
 /// Parses a command line. Options may come before or after the command; for a registry
 /// command, every other argument is a parameter: `--name value`, `--name=value` or `name=value`
@@ -276,7 +276,8 @@ fn absolute_paths(params: &mut serde_json::Map<String, Value>) {
             *s = p.to_string_lossy().into_owned();
         }
     };
-    for key in ["path"] {
+    {
+        let key = "path";
         if let Some(v) = params.get_mut(key) {
             fix(v);
         }

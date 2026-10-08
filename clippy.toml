@@ -1,0 +1,4 @@
+# folio's signatures are dense on purpose (layout and raster helpers take a page, a size, fonts
+# and colours; readers keep their tuples local): clippy's defaults flag them without helping.
+type-complexity-threshold = 1000
+too-many-arguments-threshold = 10

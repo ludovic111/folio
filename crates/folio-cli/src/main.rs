@@ -46,6 +46,10 @@ USAGE
   folio-cli doctor [--json]          check the running app, versions, folders and the lsuite entry
   folio-cli mcp-config [--json]      how to add folio-mcp to Claude Code, Codex, Cursor or Claude Desktop
   folio-cli docs [--out PATH]        write the command reference (default docs/COMMANDS.md; - for stdout)
+  folio-cli --file F agent \"<request>\" [--provider ID] [--model M] [--max-steps N] [--json] [--quiet]
+                                    run the built-in agent on a file, headless, with its whole harness
+                                    (brief, skills, live context, looks, checks); prints its reply.
+                                    --provider: claude-code, codex, lsuite, anthropic… (default: Settings › Agent)
 
 OPTIONS
   --file <file>           work on a file in this process: a .folio file is saved back after every change
@@ -139,6 +143,7 @@ async fn run(args: &[String]) -> Res {
         "mcp-config" => mcp_config(&inv),
         "batch" => batch(&inv).await,
         "convert" => convert(&inv).await,
+        "agent" => agent(&inv).await,
         _ => run_command(&inv, &command, inv.params.clone()).await,
     }
 }
@@ -333,4 +338,113 @@ async fn convert(inv: &Invocation) -> Res {
     let report = backend.call("file.export", json!({ "path": output })).await?;
     print_json(&report, inv.compact);
     Ok(())
+}
+
+/// `agent "<request>"`: the built-in agent on a file, without the window. The file is hosted in a
+/// session of this process with a bridge of its own (in a private folder, so a running folio
+/// app's bridge is left alone), so the Claude Code and Codex providers reach it through
+/// `folio-mcp --live` exactly as they do from the Agent panel.
+async fn agent(inv: &Invocation) -> Res {
+    use folio_agent::{Agent, AgentConfig, AgentEvent, Conversation, ProviderKind};
+    let mut prompt: Option<String> = None;
+    let (mut provider, mut model, mut max_steps) = (None, None, None);
+    let (mut as_json, mut quiet) = (false, false);
+    let mut it = inv.rest.iter();
+    while let Some(arg) = it.next() {
+        let mut value = |flag: &str| it.next().cloned().ok_or_else(|| Failure::Usage(format!("{flag} needs a value")));
+        match arg.as_str() {
+            "--provider" => provider = Some(value("--provider")?),
+            "--model" => model = Some(value("--model")?),
+            "--max-steps" => max_steps = Some(value("--max-steps")?.parse::<usize>().map_err(|_| Failure::Usage("--max-steps is a number".into()))?),
+            "--prompt-file" => {
+                let path = value("--prompt-file")?;
+                prompt = Some(std::fs::read_to_string(&path).map_err(|e| format!("Couldn't read {path}: {e}"))?);
+            }
+            "--json" => as_json = true,
+            "--quiet" => quiet = true,
+            other if other.starts_with("--") => return Err(Failure::Usage(format!("Unknown option `{other}` for agent"))),
+            other if prompt.is_none() => prompt = Some(other.to_string()),
+            other => return Err(Failure::Usage(format!("agent takes one request; `{other}` is extra (quote the request)"))),
+        }
+    }
+    let prompt = prompt.filter(|p| !p.trim().is_empty()).ok_or_else(|| Failure::Usage("agent needs a request: folio-cli --file report.folio agent \"Write …\"".into()))?;
+    let file = inv.file.clone().ok_or_else(|| Failure::Usage("agent works on a file: folio-cli --file report.folio agent \"…\"".into()))?;
+    let file = folio_cli::absolute(&file)?;
+
+    // A private data folder: the bridge's control file, the agent's workspace and its looks.
+    let data = std::env::temp_dir().join(format!("folio-agent-{}", std::process::id()));
+    let session = folio_control::Session::new(folio_control::SessionOptions { data_dir: Some(data.clone()), config_dir: None, secrets: None, headless: true })
+        .map_err(|e| format!("Couldn't start a session: {e}"))?;
+    if file.exists() {
+        folio_control::call(&session, Source::Cli, "file.open", json!({ "path": file })).await?;
+    } else {
+        let title = file.file_stem().and_then(|s| s.to_str()).unwrap_or("Untitled").to_string();
+        folio_control::call(&session, Source::Cli, "file.new", json!({ "title": title, "kind": "blank" })).await?;
+        folio_control::call(&session, Source::Cli, "file.saveAs", json!({ "path": file })).await?;
+    }
+    let _bridge = folio_control::bridge::Server::start(session.clone()).await.map_err(|e| format!("Couldn't start the bridge: {e}"))?;
+
+    let mut config = AgentConfig::from_settings(&session.settings().agent);
+    if let Some(p) = provider {
+        config.provider = ProviderKind::parse(&p).ok_or_else(|| Failure::Usage(format!("Unknown provider `{p}` (claude-code, codex, lsuite, anthropic, openai, openrouter, gemini, mistral, ollama, lmstudio, openai-compatible)")))?;
+        if model.is_none() {
+            config.model = String::new();
+        }
+    }
+    if let Some(m) = model {
+        config.model = m;
+    }
+    if let Some(n) = max_steps {
+        config.max_steps = n.max(1);
+    }
+    let started = std::time::Instant::now();
+    let mut run = Agent::start(&session, config.clone(), prompt, Conversation::new());
+    let mut commands: Vec<Value> = vec![];
+    let (mut input_tokens, mut output_tokens) = (0u64, 0u64);
+    let mut outcome: Result<(String, usize, Option<u64>), String> = Err("The run ended without an answer.".into());
+    while let Some(event) = run.next_event().await {
+        match event {
+            AgentEvent::Status { message } if !quiet => eprintln!("· {message}"),
+            AgentEvent::Command { record, .. } => {
+                if !quiet {
+                    eprintln!("{} {}{}", if record.ok { "✓" } else { "✗" }, record.command, record.error.as_deref().map(|e| format!(": {}", e.lines().next().unwrap_or(""))).unwrap_or_default());
+                }
+                commands.push(json!({ "command": record.command, "ok": record.ok, "error": record.error, "params": record.params }));
+            }
+            AgentEvent::Usage { input_tokens: i, output_tokens: o } => {
+                input_tokens += i;
+                output_tokens += o;
+            }
+            AgentEvent::Done { summary, checkpoint, changes, .. } => outcome = Ok((summary, changes, checkpoint)),
+            AgentEvent::Error { message, .. } => outcome = Err(message),
+            AgentEvent::Cancelled { .. } => outcome = Err("Cancelled.".into()),
+            _ => {}
+        }
+    }
+    session.flush();
+    drop(_bridge);
+    let _ = std::fs::remove_dir_all(&data);
+    let seconds = started.elapsed().as_secs_f64();
+    if as_json {
+        let (ok, reply, error, changes) = match &outcome {
+            Ok((summary, changes, _)) => (true, summary.clone(), None, *changes),
+            Err(e) => (false, String::new(), Some(e.clone()), commands.iter().filter(|c| c["ok"] == true).count()),
+        };
+        print_json(
+            &json!({
+                "ok": ok, "reply": reply, "error": error, "file": file, "provider": config.provider.id(), "model": config.model(),
+                "changes": changes, "commands": commands, "seconds": (seconds * 10.0).round() / 10.0,
+                "usage": { "inputTokens": input_tokens, "outputTokens": output_tokens },
+            }),
+            inv.compact,
+        );
+        return if ok { Ok(()) } else { Err(Failure::Command(error.unwrap_or_default())) };
+    }
+    match outcome {
+        Ok((summary, _, _)) => {
+            say!("{}", summary.trim());
+            Ok(())
+        }
+        Err(e) => Err(Failure::Command(e)),
+    }
 }

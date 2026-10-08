@@ -94,18 +94,14 @@ pub struct PageView {
     /// Sheets: the active cell and the other corner of the selected range.
     pub cell: Addr,
     pub anchor: Addr,
-    /// Sheets: the top-left visible cell (scrolling).
-    pub scroll: Addr,
     /// Decks: the slide shown and the selected shapes.
     pub slide: usize,
     pub shapes: Vec<Id>,
-    /// Documents: vertical scroll in points.
-    pub scroll_y: f32,
 }
 
 impl Default for PageView {
     fn default() -> Self {
-        PageView { text: None, cell: Addr::new(0, 0), anchor: Addr::new(0, 0), scroll: Addr::new(0, 0), slide: 0, shapes: vec![], scroll_y: 0.0 }
+        PageView { text: None, cell: Addr::new(0, 0), anchor: Addr::new(0, 0), slide: 0, shapes: vec![] }
     }
 }
 
@@ -176,8 +172,6 @@ pub enum StoreEvent {
     Switched,
     /// The first-run setup closed: the workspace takes the keyboard again.
     SetupClosed,
-    /// Start editing the active cell (with this text, or its content).
-    EditCell(Option<String>),
 }
 
 pub struct Store {
@@ -402,7 +396,7 @@ impl Store {
             Event::SettingsChanged => {
                 self.settings = self.session.settings();
                 // Not while the store is being updated: the theme reads it.
-                cx.defer(|cx| crate::app::apply_theme_setting(cx));
+                cx.defer(crate::app::apply_theme_setting);
                 cx.notify();
             }
             Event::AccountChanged => self.refresh_account(cx),

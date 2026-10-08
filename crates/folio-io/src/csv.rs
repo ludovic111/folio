@@ -33,7 +33,7 @@ fn decode(bytes: &[u8]) -> (String, Option<&'static str>) {
         return (String::from_utf8_lossy(rest).into_owned(), None);
     }
     let utf16 = |le: bool| -> String {
-        let units: Vec<u16> = bytes[2..].chunks_exact(2).map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }).collect();
+        let units: Vec<u16> = bytes[2..].as_chunks::<2>().0.iter().map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }).collect();
         String::from_utf16_lossy(&units)
     };
     if bytes.starts_with(&[0xff, 0xfe]) {
@@ -62,7 +62,7 @@ fn cp1252(b: u8) -> char {
 fn sniff_delimiter(text: &str) -> u8 {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(50).collect();
     let mut best = (b',', 0usize);
-    for d in [b',', b';', b'\t', b'|'] {
+    for d in *b",;\t|" {
         let counts: Vec<usize> = lines
             .iter()
             .map(|l| {

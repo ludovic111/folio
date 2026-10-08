@@ -11,6 +11,7 @@ pub mod account;
 pub mod bridge;
 pub mod commands;
 pub mod discovery;
+pub mod harness;
 pub mod overview;
 pub mod plugins;
 pub mod recent;
@@ -19,6 +20,7 @@ pub mod secrets;
 pub mod session;
 pub mod settings;
 pub mod templates;
+pub mod vision;
 
 pub use registry::{Kind, Param, Perm, Spec, call, commands as specs, describe, input_schema, markdown, spec};
 pub use session::{CmdResult, CommandRecord, Event, Session, SessionOptions, Source, ToastKind, UiCall, UiState};

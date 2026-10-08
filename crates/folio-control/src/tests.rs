@@ -45,6 +45,23 @@ async fn a_file_with_three_kinds_of_page() {
     assert_eq!(o["links"].as_array().unwrap().len(), 2);
 }
 
+/// "Its 1-based number" works as a JSON number too: `slide: 2`, `page: 1` (models send both).
+#[tokio::test]
+async fn slides_and_pages_by_number() {
+    let (s, _d) = session();
+    run(&s, "file.new", json!({ "title": "Talk", "kind": "deck" })).await;
+    run(&s, "deck.addSlide", json!({ "title": "First" })).await;
+    run(&s, "deck.addSlide", json!({ "title": "Second" })).await;
+    // A new deck starts with its title slide: slide 3 is "Second".
+    let look = run(&s, "harness.look", json!({ "page": 1, "slide": 3 })).await;
+    assert!(look["path"].as_str().unwrap().ends_with(".png"), "{look}");
+    assert_eq!((look["slide"].as_u64(), look["title"].as_str()), (Some(3), Some("Second")), "{look}");
+    let r = run(&s, "deck.read", json!({ "page": 1 })).await;
+    assert!(r.to_string().contains("Second"), "{r}");
+    // A number where a number can't name anything is still refused with the reason.
+    assert!(call(&s, Source::Cli, "harness.look", json!({ "slide": 9 })).await.unwrap_err().contains('9'));
+}
+
 #[tokio::test]
 async fn undo_covers_every_client_and_batches() {
     let (s, _d) = session();

@@ -54,7 +54,7 @@ pub use host::{Entry, Host, RunInfo, RunState, Snapshot};
 pub use models::{ModelInfo, ModelList, list as list_models};
 pub use providers::Group;
 pub use status::{Action, KeyStatus, Next, ProviderStatus, provider_status, status_of};
-pub use tools::{RUN_TOOL, SYSTEM_PROMPT, TOOL_OUTPUT_LIMIT, ToolDef, ToolSet, tool_defs};
+pub use tools::{RUN_TOOL, TOOL_OUTPUT_LIMIT, ToolDef, ToolSet, system_prompt, tool_defs};
 
 /// Most model round trips in one run before it stops and says so.
 pub const MAX_STEPS: usize = 40;
@@ -259,6 +259,12 @@ pub enum Part {
     /// A provider block replayed verbatim to the same provider only (Anthropic thinking blocks,
     /// Gemini's signed parts).
     Opaque { provider: ProviderKind, block: Value },
+    /// A picture a command showed the model (`call`: the tool call whose result it belongs to),
+    /// base64-encoded. Kept after the results it belongs to, in the same message.
+    Image { call: Option<String>, media_type: String, data: String },
+    /// The live context (`<context>…</context>`) given before a model step, after the results
+    /// of the step before. Sent as text; not part of the person's words.
+    Context { text: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -315,7 +321,10 @@ impl Conversation {
     /// dropped with it so no block is replayed after a changed prefix.
     pub(crate) fn prepare_turn(&mut self) {
         if let Some(ai) = self.messages.iter().rposition(|m| m.role == Role::Assistant) {
-            let answers = self.messages.get(ai + 1).filter(|m| m.role == Role::User && m.parts.iter().all(|p| matches!(p, Part::ToolResult { .. })));
+            let answers = self
+                .messages
+                .get(ai + 1)
+                .filter(|m| m.role == Role::User && m.parts.iter().all(|p| matches!(p, Part::ToolResult { .. } | Part::Image { .. } | Part::Context { .. })));
             let has_answers = answers.is_some();
             let answered: Vec<&str> = answers.into_iter().flat_map(|m| &m.parts).filter_map(|p| if let Part::ToolResult { id, .. } = p { Some(id.as_str()) } else { None }).collect();
             let open: Vec<Part> = self.messages[ai]

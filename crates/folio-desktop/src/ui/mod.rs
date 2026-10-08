@@ -1,5 +1,8 @@
 //! Small building blocks shared by every view: buttons, icons, glass
 //! surfaces, segmented controls, switches, tooltips, numeric fields.
+//!
+//! A kit shared with kimchi (lsuite's design system): not every helper is used in folio.
+#![allow(dead_code)]
 
 pub mod drag;
 pub mod grain;

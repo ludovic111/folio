@@ -600,9 +600,8 @@ fn layout_once(fonts: &mut Fonts, p: &Paragraph, width: f32, ctx: &ParaCtx) -> P
             }
             // Character ranges: each wrapped line runs to where the next one starts.
             let n = raw_lines.len();
-            for i in first_new..n {
-                let s = if i == first_new { c_start } else { raw_lines[i].glyphs.iter().filter(|g| g.c1 > g.c0).map(|g| g.c0).min().unwrap_or(c_start) };
-                raw_lines[i].start = s;
+            for (i, line) in raw_lines.iter_mut().enumerate().skip(first_new) {
+                line.start = if i == first_new { c_start } else { line.glyphs.iter().filter(|g| g.c1 > g.c0).map(|g| g.c0).min().unwrap_or(c_start) };
             }
             for i in first_new..n {
                 raw_lines[i].end = if i + 1 < n { raw_lines[i + 1].start.max(raw_lines[i].start) } else { c_end + hard as usize };

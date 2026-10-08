@@ -63,10 +63,6 @@ impl DocView {
         Self { store, focus: cx.focus_handle(), layout: None, bounds: Rc::new(Cell::new(Bounds::default())), scroll: 0.0, dragging: false, goal_x: None, typing_style: None, marked: None, reveal: false }
     }
 
-    pub fn focus(&self, window: &mut Window, cx: &mut App) {
-        window.focus(&self.focus, cx);
-    }
-
     fn ctx(&self, cx: &App) -> Option<Ctx> {
         let s = self.store.read(cx);
         let doc = s.doc.clone()?;
@@ -532,6 +528,8 @@ impl DocView {
     }
 
     /// Character formatting on the selection (colour, size, font, link…).
+    /// Not wired to a control yet.
+    #[allow(dead_code)]
     pub fn format(&mut self, params: Value, cx: &mut Context<Self>) {
         let sel = self.sel(cx);
         let (a, b) = sel.ordered();

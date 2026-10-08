@@ -477,7 +477,7 @@ fn code_to_style(name: &str, code: &str) -> Option<String> {
         let truncate = if clean.starts_with("[h") || first.starts_with("[h") || first.starts_with("[H") { r#" number:truncate-on-overflow="false""# } else { "" };
         let _ = write!(s, r#"<number:{tag} style:name="{name}"{truncate}>"#);
         // Tokenise the code part into date/time pieces.
-        let code_str: String = parts.iter().map(|(k, t)| if k == "code" { t.clone() } else if k == "elapsed" { t.clone() } else { "\u{1}".to_string() + t + "\u{2}" }).collect();
+        let code_str: String = parts.iter().map(|(k, t)| if k == "code" || k == "elapsed" { t.clone() } else { "\u{1}".to_string() + t + "\u{2}" }).collect();
         let cs: Vec<char> = code_str.chars().collect();
         let mut i = 0;
         let mut last_was_hour = false;
