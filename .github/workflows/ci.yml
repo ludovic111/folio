@@ -4,38 +4,52 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   rust:
     name: Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        # Linux only while lsuite is in beta; macOS and Windows are coming soon (their code stays
-        # in the source). Add macos-latest back with them.
-        os: [ubuntu-22.04]
+        # Linux only, on ludodesktop. macOS only when started by hand: gh workflow run CI --ref <branch>.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-22.04", "macos-latest"]' || '["ubuntu-22.04"]') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On ludodesktop, keep target/ between runs (incremental builds).
+          clean: ${{ runner.environment == 'github-hosted' }}
       # GPUI's Linux backends (X11 + Wayland, Vulkan, fontconfig) and the keychain (D-Bus);
       # see script/linux in the zed repository.
       - name: Linux dependencies
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config clang libasound2-dev libdbus-1-dev libfontconfig-dev libfreetype-dev \
             libssl-dev libvulkan-dev libwayland-dev libx11-xcb-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libzstd-dev libglib2.0-dev
+      - name: Own Rust install per repo on ludodesktop
+        # The runners of several repos run at once; a shared ~/.rustup makes their installs collide.
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "RUSTUP_HOME=$HOME/.rustup-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$HOME/.cargo-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
       - name: Scripts parse
         run: for f in scripts/*.sh; do bash -n "$f"; done
       - name: The mark and icon are up to date
