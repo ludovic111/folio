@@ -84,7 +84,7 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 - [x] **Agent harness** (HARNESS.md, 0.2.0), `folio-control/src/harness/`:
   1. Brief: `brief.md` + the skills' index = `harness.brief` = the built-in agent's system prompt
      (`folio-agent` `system_prompt()`) = `folio-mcp` `instructions` (shortened for the built-in agent,
-     which has it already). A test keeps it 800–1,600 words and checks every command it names exists.
+     which has it already). A test keeps it 800–1,500 words and checks every command it names exists.
   2. Skills: 12 in `harness/skills/*.md` (`# Title`, `When:`, `## Steps`, `## Checks`); `harness.skills`,
      `harness.skill`; MCP prompts `skill-<name>` and resources `folio://skills/<name>`.
   3. Live context: `harness/context.rs` (`glance` for the panel, `context` = glance + page sizes + open
@@ -97,7 +97,9 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
   6. One undo per turn: the run's checkpoint + "Revert this run" (unchanged).
   7. Evals: `evals/run.py` (11 jobs in `evals/jobs.py`, `folio-cli --file … agent` headless with Claude
      Code by default), `evals/RESULTS.md`. Run before each release; a lower pass rate doesn't ship.
-- [ ] Harness gaps: the eval suite has been run on a few jobs only (see RESULTS.md); `harness.look`
+- [ ] Harness gaps: only 2 of the 11 eval jobs have been run with a real model (budget-sheet and
+      meeting-minutes, 2026-10-08, Claude Code's default model, 2/2 passed; RESULTS.md): run them all
+      before the release. `evals/run.py` records the model as "default" unless `--model` is given. `harness.look`
       can't show the window itself on Linux (`ui.screenshot` is macOS only); no named ranges (the brief
       says so); `default printed page` for a look is page 1, not the caret's page.
 

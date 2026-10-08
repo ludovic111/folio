@@ -1038,7 +1038,7 @@ async fn anthropic_sees_what_harness_look_draws() {
 
 fn decode_b64(s: &str) -> Vec<u8> {
     // A small decoder, so the tests need no base64 crate of their own.
-    let table: Vec<u8> = (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9').chain([b'+', b'/']).collect();
+    let table: Vec<u8> = (b'A'..=b'Z').chain(b'a'..=b'z').chain(b'0'..=b'9').chain(*b"+/").collect();
     let mut out = vec![];
     let (mut acc, mut bits) = (0u32, 0);
     for c in s.bytes().filter(|c| *c != b'=') {

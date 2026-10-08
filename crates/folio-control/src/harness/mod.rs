@@ -107,7 +107,7 @@ mod tests {
             assert!(b.contains(&format!("`{}`", s.name)));
         }
         let words = b.split_whitespace().count();
-        assert!((800..=1600).contains(&words), "the brief has {words} words");
+        assert!((800..=1500).contains(&words), "the brief has {words} words (HARNESS.md: 800 to 1,500)");
         assert!(b.contains("Finish routine"));
     }
 
