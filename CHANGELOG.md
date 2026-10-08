@@ -6,6 +6,8 @@ What changed in each folio release.
 
 folio's agent harness: an agent working in folio knows office work, sees what it made and checks it before it says it is done, whether it is the Agent panel, `folio-cli agent` or an outside agent over `folio-mcp`.
 
+**folio is in beta for Linux** (x86_64: AppImage and `.deb`, through the lsuite app). macOS and Windows are coming soon: this release and its updates are Linux only.
+
 ### New
 - **An expert brief.** The built-in agent and `folio-mcp` share one brief (`harness.brief`): the file's model, the quality bar for documents (structure is styles, citations, page setup), sheets (inputs, calculations, outputs; formats; charts that say one thing; formula errors) and decks (one idea per slide, takeaway titles, text that fits), live links, the usual mistakes and a finish routine.
 - **Skills.** Twelve playbooks for office jobs, each with the steps, the exact commands and the checks: a report from notes, a letter or CV, meeting minutes, reviewing a document, a budget or model sheet, cleaning data and summarising it, a chart from data, fixing formula errors, a deck from a document, a pitch deck, importing and converting Office files, writing a function plugin. `harness.skills` lists them, `harness.skill` loads one; over MCP each is also a prompt (`skill-<name>`) and a resource (`folio://skills/<name>`).

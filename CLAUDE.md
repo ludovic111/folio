@@ -66,6 +66,10 @@ Rules that keep it working:
 folio is part of **lsuite** with ryolune (music), kimchi (video), zenith (code) and nori (images); its page
 is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `design/DESIGN.md`.
 
+- **Linux only while lsuite is in beta** (owner, 2026-10-08): macOS and Windows are "coming soon". Their
+  code and scripts stay in the source, but CI (`ci.yml`), `release.yml` and `publish-build.sh` build and
+  ship Linux only (latest.json lists only Linux platforms); kimchi's `suite-build.yml` is being made
+  Linux only too. README and the CHANGELOG say so.
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
       through their CLIs (best effort: nori's export command is looked up from its `app.commands`).
@@ -79,8 +83,9 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
       lsuite (in the lsuite app) to get updates"; `FOLIO_UPDATE_URL` still overrides (no token). Tested
       against a fake server (`update.rs` tests).
 - [x] Releases: `release.yml` makes a draft; folio's suite builds come from kimchi's `suite-build.yml`
-      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's artifacts (or the draft)
-      to `ludovic111/lsuite-builds` as `folio-v<version>` with latest.json (folio-release) and SHA256SUMS.
+      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's Linux artifact (its Linux
+      job must have succeeded; the others may be cancelled) or the draft's Linux files to
+      `ludovic111/lsuite-builds` as `folio-v<version>` with latest.json (folio-release) and SHA256SUMS.
 - [x] **Agent harness** (HARNESS.md, 0.2.0), `folio-control/src/harness/`:
   1. Brief: `brief.md` + the skills' index = `harness.brief` = the built-in agent's system prompt
      (`folio-agent` `system_prompt()`) = `folio-mcp` `instructions` (shortened for the built-in agent,

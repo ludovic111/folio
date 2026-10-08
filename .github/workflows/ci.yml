@@ -18,7 +18,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-latest]
+        # Linux only while lsuite is in beta; macOS and Windows are coming soon (their code stays
+        # in the source). Add macos-latest back with them.
+        os: [ubuntu-22.04]
     steps:
       - uses: actions/checkout@v4
       # GPUI's Linux backends (X11 + Wayland, Vulkan, fontconfig) and the keychain (D-Bus);
