@@ -13,11 +13,12 @@ folio's agent harness: an agent working in folio knows office work, sees what it
 - **The agent sees its work.** `harness.look` draws a document's printed page, a slide, or a sheet range with its charts, exactly as the window and the PDF do, with its numbers (pages, words, headings, slide text and overflow, column sums, errors). The picture reaches models that can see, in the Agent panel (lsuite AI, Anthropic, OpenAI, OpenRouter, Gemini, Mistral, vision models on Ollama and LM Studio) and over MCP.
 - **Objective checks.** `harness.check` finds formula errors (the cell that causes them first), totals that leave out rows, empty cells inside tables and summed ranges, columns too narrow for their numbers, skipped heading levels, bold lines posing as headings, placeholder text, text overflowing slide boxes, shapes off the slide, empty titles and broken live links.
 - **`folio-cli agent`.** Runs the built-in agent on a file without the window (`folio-cli --file report.folio agent "…" --provider claude-code`).
-- **Evals.** Eleven scripted office jobs in `evals/`, run headless with a real model and scored automatically on the resulting file (`python3 evals/run.py`; results in `evals/RESULTS.md`).
+- **Evals.** Eleven scripted office jobs in `evals/`, run headless with a real model and scored automatically on the resulting file (`python3 evals/run.py`; results in `evals/RESULTS.md`): 11 of 11 pass with Opus.
 
 ### Changed
 - **Updates come through lsuite.** The update check asks lsuite.xyz with your lsuite account (the free account the lsuite app signs in), and downloads through it; signatures are checked exactly as before. Signed out, it says to sign in in the lsuite app. `scripts/publish-build.sh` publishes a build to lsuite's build store.
 - Commands that answer Markdown (the brief, a skill, the plugin guide) reach agents as text, not as a JSON string.
+- A page or slide named by its number can be given as a number (`slide: 2`) as well as text, in every command.
 
 ## 0.1.0 — 2026-10-07 (beta)
 

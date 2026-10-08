@@ -6,6 +6,7 @@ agent with a real model, each scored by automatic checks on the resulting .folio
     python3 evals/run.py budget-sheet pitch-deck only these jobs
     python3 evals/run.py --model haiku --provider claude-code
     python3 evals/run.py --provider anthropic    with ANTHROPIC_API_KEY (or any provider id)
+    python3 evals/run.py --cli /tmp/bin/folio-cli  binaries copied elsewhere (folio-mcp beside it)
     python3 evals/run.py --list                  the jobs
     python3 evals/run.py --score DIR             score the files of an earlier run again
 
@@ -92,6 +93,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1200, help="seconds per job")
     ap.add_argument("--profile", default="debug", choices=["debug", "release"])
     ap.add_argument("--no-build", action="store_true")
+    ap.add_argument("--cli", metavar="PATH", help="this folio-cli (with folio-mcp beside it) instead of target/<profile>/; implies --no-build")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--score", metavar="DIR", help="score the files of an earlier run again")
     ap.add_argument("--no-record", action="store_true", help="don't add to RESULTS.md")
@@ -107,8 +109,8 @@ def main() -> int:
         print(f"unknown jobs: {', '.join(sorted(unknown))} (--list)", file=sys.stderr)
         return 2
 
-    cli = ROOT / "target" / args.profile / "folio-cli"
-    if not args.no_build:
+    cli = Path(args.cli).resolve() if args.cli else ROOT / "target" / args.profile / "folio-cli"
+    if not args.no_build and not args.cli:
         cli = build(args.profile)
     keep_account = args.provider in ("lsuite", "lsuite-ai")
 
