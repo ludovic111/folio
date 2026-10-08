@@ -101,7 +101,8 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
   7. Evals: `evals/run.py` (11 jobs in `evals/jobs.py`, `folio-cli --file … agent` headless with Claude
      Code by default), `evals/RESULTS.md`. Run before each release; a lower pass rate doesn't ship.
 - [ ] Harness gaps: only 2 of the 11 eval jobs have been run with a real model (budget-sheet and
-      meeting-minutes, 2026-10-08, Claude Code's default model, 2/2 passed; RESULTS.md): run them all
+      meeting-minutes, 2026-10-08, Claude Code's default model, 2/2 passed twice, before and after
+      `harnessNotes`; RESULTS.md): run them all
       before the release. `evals/run.py` records the model as "default" unless `--model` is given. `harness.look`
       can't show the window itself on Linux (`ui.screenshot` is macOS only); no named ranges (the brief
       says so); `default printed page` for a look is page 1, not the caret's page.
