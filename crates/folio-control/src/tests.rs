@@ -52,9 +52,10 @@ async fn slides_and_pages_by_number() {
     run(&s, "file.new", json!({ "title": "Talk", "kind": "deck" })).await;
     run(&s, "deck.addSlide", json!({ "title": "First" })).await;
     run(&s, "deck.addSlide", json!({ "title": "Second" })).await;
-    let look = run(&s, "harness.look", json!({ "page": 1, "slide": 2 })).await;
+    // A new deck starts with its title slide: slide 3 is "Second".
+    let look = run(&s, "harness.look", json!({ "page": 1, "slide": 3 })).await;
     assert!(look["path"].as_str().unwrap().ends_with(".png"), "{look}");
-    assert!(look.to_string().contains("Second"), "{look}");
+    assert_eq!((look["slide"].as_u64(), look["title"].as_str()), (Some(3), Some("Second")), "{look}");
     let r = run(&s, "deck.read", json!({ "page": 1 })).await;
     assert!(r.to_string().contains("Second"), "{r}");
     // A number where a number can't name anything is still refused with the reason.
