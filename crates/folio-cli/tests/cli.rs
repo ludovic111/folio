@@ -2,22 +2,8 @@
 
 use std::process::Command;
 
-/// The binary under test. Cargo names it in `CARGO_BIN_EXE_folio-cli`, which a `/bin/sh`
-/// rustc-wrapper drops (dash forgets variables with `-` in their names): then it is found
-/// beside the test, in the target directory.
-fn exe() -> std::path::PathBuf {
-    option_env!("CARGO_BIN_EXE_folio-cli").map(Into::into).unwrap_or_else(|| {
-        let mut dir = std::env::current_exe().expect("the test's path");
-        dir.pop();
-        if dir.ends_with("deps") {
-            dir.pop();
-        }
-        dir.join(format!("folio-cli{}", std::env::consts::EXE_SUFFIX))
-    })
-}
-
 fn cli(dir: &std::path::Path, args: &[&str]) -> (bool, String, String) {
-    let out = Command::new(exe())
+    let out = Command::new(env!("CARGO_BIN_EXE_folio-cli"))
         .args(args)
         .env("FOLIO_DATA_DIR", dir.join("data"))
         .env("FOLIO_CONFIG_DIR", dir.join("config"))

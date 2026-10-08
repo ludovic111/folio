@@ -96,7 +96,7 @@ async fn main() {
     eprintln!("folio-mcp {}: {} mode{}", env!("CARGO_PKG_VERSION"), backend.mode(), backend.path().map(|p| format!(" on {}", p.display())).unwrap_or_default());
 
     let (out, writer) = protocol_out();
-    let server = Arc::new(Server { backend, context: Mutex::new(None) });
+    let server = Arc::new(Server::new(backend));
     // Requests in flight by id (as JSON text), to cancel them.
     let running: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>> = Arc::default();
     let mut stdin = tokio::io::BufReader::with_capacity(1 << 16, tokio::io::stdin());
@@ -267,7 +267,13 @@ struct Server {
     /// The live context last given (its `seq` and text), so a tool result carries a fresh one
     /// only when something changed.
     context: Mutex<Option<(u64, String)>>,
+    /// Set by an edit, cleared by `harness.look` or `harness.check`: while set, results remind
+    /// the agent of the finish routine.
+    unchecked: Mutex<bool>,
 }
+
+/// The finish routine's reminder, in results after an edit until the agent checks or looks.
+const NOT_CHECKED: &str = "Not checked yet: before you say you are done, run harness_check and harness_look on what you changed (the finish routine), fix what they show, then report.";
 
 /// A request (with an id) or a notification.
 struct Frame {
@@ -332,40 +338,22 @@ impl Server {
                     return Err((-32602, format!("Unknown tool `{name}`: the built-in agent doesn't drive itself")));
                 }
                 let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                let mut reply = match self.backend.call(spec.name, arguments).await {
-                    Ok(result) => {
-                        // Markdown answers (the brief, a skill, a guide) go as they are.
-                        let mut text = match &result {
-                            Value::String(s) => s.clone(),
-                            _ => serde_json::to_string_pretty(&result).unwrap_or_else(|_| result.to_string()),
-                        };
-                        if spec.mutates
-                            && let Some(path) = self.backend.path()
-                        {
-                            text.push_str(&format!("\n(saved {})", path.display()));
+                let result = self.backend.call(spec.name, arguments).await;
+                let pictures = match &result {
+                    Ok(value) => {
+                        let mut pictures = vec![];
+                        for path in folio_control::vision::pictures_in(spec.name, value) {
+                            pictures.push(match folio_control::vision::picture(&path).await {
+                                Ok(p) => json!({ "type": "image", "data": p.data, "mimeType": p.media_type }),
+                                Err(e) => json!({ "type": "text", "text": format!("(The picture couldn't be read: {e})") }),
+                            });
                         }
-                        let mut content = vec![json!({ "type": "text", "text": text })];
-                        for path in folio_control::vision::pictures_in(spec.name, &result) {
-                            match folio_control::vision::picture(&path).await {
-                                Ok(p) => content.push(json!({ "type": "image", "data": p.data, "mimeType": p.media_type })),
-                                Err(e) => content.push(json!({ "type": "text", "text": format!("(The picture couldn't be read: {e})") })),
-                            }
-                        }
-                        let mut reply = json!({ "content": content, "isError": false });
-                        if result.is_object() {
-                            reply["structuredContent"] = result;
-                        }
-                        reply
+                        pictures
                     }
-                    Err(message) => json!({ "content": [{ "type": "text", "text": message }], "isError": true }),
+                    Err(_) => vec![],
                 };
-                if spec.family() != "harness"
-                    && let Some(block) = self.fresh_context().await
-                    && let Some(content) = reply["content"].as_array_mut()
-                {
-                    content.push(json!({ "type": "text", "text": block }));
-                }
-                Ok(reply)
+                let notes = self.notes(spec, result.is_ok()).await;
+                Ok(tool_reply(result, notes, pictures))
             }
             "resources/list" => {
                 let mut list: Vec<Value> = RESOURCES.iter().map(|(uri, name, description, _)| json!({
@@ -460,10 +448,42 @@ impl Server {
             return format!("folio's MCP server for its built-in agent. {mode}");
         }
         format!(
-            "{mode}\nEach tool is one folio command (family_verb is family.verb in the brief below). Results carry a fresh <context> block when the file changed. \
+            "{mode}\nEach tool is one folio command (family_verb is family.verb in the brief below). Results end with a fresh <context> block when the file changed (with what the person changed meanwhile) and, after an edit, \
+             a reminder of the finish routine until you run harness_check or harness_look; these notes are also under harnessNotes in the structured result. \
              Skills are also prompts (skill-<name>) and resources (folio://skills/<name>).\n\n{}",
             folio_control::harness::brief()
         )
+    }
+
+    fn new(backend: Backend) -> Self {
+        Server { backend, context: Mutex::new(None), unchecked: Mutex::new(false) }
+    }
+
+    /// What the harness adds to a tool's result: where an edit was saved, the live context when
+    /// it changed, and the finish routine's reminder after an edit until the agent checks.
+    async fn notes(&self, spec: &registry::Spec, ok: bool) -> Vec<String> {
+        let mut notes = vec![];
+        if ok
+            && spec.mutates
+            && let Some(path) = self.backend.path()
+        {
+            notes.push(format!("(saved {})", path.display()));
+        }
+        if spec.family() != "harness"
+            && let Some(block) = self.fresh_context().await
+        {
+            notes.push(block);
+        }
+        let mut unchecked = self.unchecked.lock().unwrap_or_else(|e| e.into_inner());
+        if ok && matches!(spec.name, "harness.look" | "harness.check") {
+            *unchecked = false;
+        } else if ok && spec.mutates && spec.family() != "harness" {
+            *unchecked = true;
+        }
+        if *unchecked {
+            notes.push(NOT_CHECKED.into());
+        }
+        notes
     }
 
     /// The live context, when it changed since the last one given: as a `<context>` block.
@@ -528,6 +548,37 @@ fn tools() -> Vec<Value> {
         .collect()
 }
 
+/// A `tools/call` result. The notes end the text and also go under `harnessNotes` in
+/// `structuredContent`, because some clients (Claude Code) show the structured result instead of
+/// the text when both are there. A result with pictures has no `structuredContent`, so such a
+/// client still gets the pictures (the text carries the same JSON).
+fn tool_reply(result: Result<Value, String>, notes: Vec<String>, pictures: Vec<Value>) -> Value {
+    let joined = |text: String| if notes.is_empty() { text } else { format!("{text}\n\n{}", notes.join("\n\n")) };
+    match result {
+        Ok(value) => {
+            // Markdown answers (the brief, a skill, a guide) go as they are.
+            let text = match &value {
+                Value::String(s) => s.clone(),
+                _ => serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string()),
+            };
+            let mut content = vec![json!({ "type": "text", "text": joined(text) })];
+            let pictured = !pictures.is_empty();
+            content.extend(pictures);
+            let mut reply = json!({ "content": content, "isError": false });
+            if let Value::Object(mut object) = value
+                && !pictured
+            {
+                if !notes.is_empty() {
+                    object.insert("harnessNotes".into(), json!(notes));
+                }
+                reply["structuredContent"] = Value::Object(object);
+            }
+            reply
+        }
+        Err(message) => json!({ "content": [{ "type": "text", "text": joined(message) }], "isError": true }),
+    }
+}
+
 fn error(id: Value, code: i64, message: &str) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
@@ -535,6 +586,70 @@ fn error(id: Value, code: i64, message: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notes_ride_in_the_text_and_the_structured_result() {
+        let notes = vec!["(saved /tmp/a.folio)".to_string(), NOT_CHECKED.to_string()];
+        let r = tool_reply(Ok(json!({ "changed": 1 })), notes.clone(), vec![]);
+        let text = r["content"][0]["text"].as_str().unwrap();
+        assert!(text.starts_with("{") && text.ends_with(NOT_CHECKED), "{text}");
+        assert_eq!(r["structuredContent"]["changed"], 1);
+        assert_eq!(r["structuredContent"]["harnessNotes"], json!(notes));
+        // Markdown and lists have no structured result: the text says it all.
+        let r = tool_reply(Ok(json!("# Brief")), vec![], vec![]);
+        assert_eq!((r["content"][0]["text"].as_str(), r.get("structuredContent")), (Some("# Brief"), None));
+        // Without notes, the structured result is the command's answer as it is.
+        let r = tool_reply(Ok(json!({ "a": 1 })), vec![], vec![]);
+        assert_eq!(r["structuredContent"], json!({ "a": 1 }));
+        // Errors carry the notes in their text.
+        let r = tool_reply(Err("No such page.".into()), vec!["<context>\nx\n</context>".into()], vec![]);
+        assert_eq!(r["isError"], true);
+        assert_eq!(r["content"][0]["text"], "No such page.\n\n<context>\nx\n</context>");
+    }
+
+    /// Over a real file: an edit's result carries the saved line, the context and the finish
+    /// routine's reminder in `harnessNotes`, until the agent checks; a look's picture arrives.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn harness_notes_reach_clients_that_show_the_structured_result() {
+        let dir = tempfile::tempdir().unwrap();
+        // SAFETY: set before any session starts; no other test in this binary reads them.
+        unsafe {
+            std::env::set_var("FOLIO_DATA_DIR", dir.path().join("data"));
+            std::env::set_var("FOLIO_CONFIG_DIR", dir.path().join("config"));
+            std::env::set_var("FOLIO_CONTROL", dir.path().join("control.json"));
+            std::env::set_var("LSUITE_HOME", dir.path().join("lsuite"));
+        }
+        let path = dir.path().join("notes.folio");
+        let server = Server::new(Backend::file(&path, Source::Mcp).await.unwrap());
+        let call = async |name: &str, arguments: Value| server.dispatch("tools/call", &json!({ "name": name, "arguments": arguments })).await.unwrap();
+        let notes = |r: &Value| r["structuredContent"]["harnessNotes"].as_array().cloned().unwrap_or_default().iter().map(|n| n.as_str().unwrap().to_string()).collect::<Vec<_>>();
+
+        let made = call("file_new", json!({ "kind": "sheet", "title": "Notes" })).await;
+        assert_eq!(made["isError"], false, "{made}");
+        let set = call("sheet_setRange", json!({ "at": "A1", "values": [["Item", "Cost"], ["Rent", 1200], ["Food", 300], ["Total", "=SUM(B2:B3)"]] })).await;
+        assert_eq!(set["isError"], false, "{set}");
+        let n = notes(&set);
+        assert!(n.iter().any(|n| n.starts_with("(saved ")), "{n:?}");
+        assert!(n.iter().any(|n| n.starts_with("<context>") && n.contains("1 formula")), "{n:?}");
+        assert_eq!(n.last().map(String::as_str), Some(NOT_CHECKED));
+        assert!(set["content"][0]["text"].as_str().unwrap().ends_with(NOT_CHECKED), "the text has the notes too");
+        // Reading doesn't end the reminder; checking does.
+        assert!(notes(&call("sheet_read", json!({ "range": "A1:B4" })).await).iter().any(|n| n == NOT_CHECKED));
+        let checked = call("harness_check", json!({})).await;
+        assert_eq!(checked["isError"], false, "{checked}");
+        assert!(!checked.to_string().contains("Not checked yet"), "{checked}");
+        assert!(!call("sheet_read", json!({ "range": "A1:B4" })).await.to_string().contains("Not checked yet"));
+        // A look: the picture follows the text, with no structured result to hide it.
+        call("sheet_set", json!({ "cell": "A5", "value": "Note" })).await;
+        let look = call("harness_look", json!({ "range": "A1:B5" })).await;
+        assert_eq!(look["isError"], false, "{look}");
+        assert_eq!((look["content"][1]["type"].as_str(), look["content"][1]["mimeType"].as_str()), (Some("image"), Some("image/png")), "{look}");
+        assert!(look.get("structuredContent").is_none());
+        assert!(!look.to_string().contains("Not checked yet"), "looking ends the reminder");
+        // An error keeps its message, with the notes after it.
+        let wrong = call("sheet_read", json!({ "page": "Nope" })).await;
+        assert_eq!(wrong["isError"], true, "{wrong}");
+    }
 
     #[tokio::test]
     async fn lines_are_read_within_the_limit() {

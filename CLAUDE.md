@@ -89,7 +89,10 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
      `harness.skill`; MCP prompts `skill-<name>` and resources `folio://skills/<name>`.
   3. Live context: `harness/context.rs` (`glance` for the panel, `context` = glance + page sizes + open
      problems + the person's changes since `seq`); the API loop appends a `Part::Context` after a step's
-     results when it changed; `folio-mcp` appends a `<context>` block to tool results when it changed.
+     results when it changed; `folio-mcp` appends notes (saved path, `<context>` when it changed, the
+     finish-routine reminder after an edit until `harness.check`/`harness.look`) to the text AND to
+     `structuredContent.harnessNotes`: Claude Code shows `structuredContent` instead of the text when
+     both exist. Results with pictures have no `structuredContent`. Test: `folio-mcp` `harness_notes_…`.
   4. Eyes: `harness.look` (`harness/look.rs`: `page_png`, `slide_png`, folio-layout's new `sheet_png`)
      → `<data>/looks/`; `vision.rs` turns `harness.look`/`ui.screenshot` paths into pictures:
      `Part::Image` per provider (kimchi's approach) and MCP image content.

@@ -37,12 +37,17 @@ The sources are in `crates/folio-control/src/harness/` (`brief.md`, `skills/*.md
 
 - **Live context every step.** The built-in agent sends `harness.context` with the request and
   again after each step's results when it changed. `folio-mcp` adds a `<context>` block to a tool
-  result when the context changed since the last one it gave.
+  result when the context changed since the last one it gave (with what the person changed
+  meanwhile), the path an edit was saved to in file mode, and, after an edit, a reminder of the
+  finish routine until the agent runs `harness.check` or `harness.look`. These notes end the
+  result's text and are also the list `harnessNotes` in its `structuredContent`, because some
+  clients (Claude Code) show the structured result instead of the text. A result with a picture
+  has no `structuredContent`, so the picture is never hidden behind it.
 - **Pictures.** `harness.look` and `ui.screenshot` answers carry a picture: the built-in agent
   attaches it to the tool result for models that can see (Anthropic and lsuite AI inside the
   result, OpenAI-compatible servers and Ollama in a message after it, Gemini inline; a server that
   refuses pictures gets the request again without them), and `folio-mcp` returns it as MCP image
-  content.
+  content after the text.
 - **Finish routine.** Before saying it is done the agent runs `harness.check`, looks at what it
   made with `harness.look`, fixes what is off (three passes at most) and reports in a few lines.
 - **MCP.** The brief is `instructions` and the resource `folio://harness/brief`; each skill is a
