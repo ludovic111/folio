@@ -63,7 +63,7 @@ Rules that keep it working:
 
 ## lsuite (notes 2026-10-07)
 
-folio is part of **lsuite** with ryolune (music), kimchi (video), zenith (code) and nori (images); its page
+folio is part of **lsuite** with ryolune (music), kimchi (video) and nori (images); its page
 is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `design/DESIGN.md`.
 
 - **Linux only while lsuite is in beta** (owner, 2026-10-08): macOS and Windows are "coming soon". Their
