@@ -80,7 +80,7 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
       through their CLIs (best effort: nori's export command is looked up from its `app.commands`).
-- [x] **Fully free** (owner, 2026-10-10; lsuite's free-suite contract): no lsuite account, lsuite AI, Pass,
+- [x] **Fully free** (owner, 2026-10-10, shipped in 0.3.0; lsuite's free-suite contract): no lsuite account, lsuite AI, Pass,
       Cloud or Marketplace. The agent's providers are the person's own (Claude Code first and the
       default, Codex, API keys, local servers); settings that chose the old `lsuite` provider load as
       Claude Code (`Settings::load`); an old `~/.lsuite/account.json` is ignored, never deleted.

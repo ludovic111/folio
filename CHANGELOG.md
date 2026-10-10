@@ -2,9 +2,9 @@
 
 What changed in each folio release.
 
-## Unreleased
+## 0.3.0 — 2026-10-11 (beta)
 
-lsuite is now entirely free: no account, no subscription. **folio is back on macOS** (Apple Silicon and Intel) next to Linux; Windows is coming soon.
+folio is free from end to end, like all of lsuite: no account, no subscription. **folio is back on macOS** (Apple Silicon and Intel) next to Linux; Windows is coming soon.
 
 ### Removed
 - **lsuite AI and the lsuite account.** The agent runs on what you bring: Claude Code, Codex, an Anthropic, OpenAI, OpenRouter, Gemini or Mistral key, or a local model (Ollama, LM Studio, any OpenAI-compatible server). The `account.*` commands, the lsuite AI dialog, the sign-in in the Agent panel and in the first-run setup are gone. Settings that chose lsuite AI switch to Claude Code; an old `~/.lsuite/account.json` is left alone and ignored.
