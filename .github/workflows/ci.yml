@@ -21,7 +21,7 @@ jobs:
     # Self-hosted: Linux on ludodesktop, macOS on the Mac mini (MAC_RUNNER=macos-latest sends it back
     # to GitHub). A pull request from a fork never reaches them: it runs on GitHub's machines.
     runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && matrix.os || (matrix.os == 'ubuntu-22.04' && (vars.LINUX_RUNNER || 'ludodesktop') || (vars.MAC_RUNNER || 'ludovics-mac-mini')) }}
-    timeout-minutes: 60
+    timeout-minutes: 120  # the ThinkPad (4 threads) builds from cold in over an hour
     strategy:
       fail-fast: false
       matrix:
