@@ -8,9 +8,9 @@
 #                                                 (made by .github/workflows/release.yml), which is
 #                                                 deleted once the copy is published
 #
-# Linux only while lsuite is in beta (macOS and Windows are coming soon): only the Linux files are
-# taken, so latest.json lists only Linux platforms, and a suite-build run counts when its Linux job
-# succeeded (its macOS and Windows jobs may be cancelled).
+# Linux and macOS (Windows is coming soon): the Linux and macOS files are taken, so latest.json lists
+# linux-x86_64 and darwin-aarch64 / darwin-x86_64, and a suite-build run counts when its Linux and
+# both macOS jobs succeeded (a Windows job may be cancelled).
 #
 # The files are copied as built and signed (the platform files and their .sig); the signatures
 # are checked against folio's update key, latest.json is written by folio-release (its URLs point
@@ -50,19 +50,23 @@ dist="$work/dist"
 mkdir -p "$dist" "$work/in"
 
 if [ -n "$run" ]; then
-  linux_job=$(gh run view "$run" -R "$suite" --json jobs -q '.jobs[] | select(.name | endswith("x86_64-unknown-linux-gnu")) | "\(.status) \(.conclusion)"')
-  echo "run $run, Linux job: $linux_job"
-  [ "$linux_job" = "completed success" ] || { echo "error: the Linux job of run $run hasn't succeeded" >&2; exit 1; }
-  gh run download "$run" -R "$suite" -n folio-x86_64-unknown-linux-gnu -D "$work/in"
+  for target in x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin; do
+    job=$(gh run view "$run" -R "$suite" --json jobs -q ".jobs[] | select(.name | endswith(\"$target\")) | \"\(.status) \(.conclusion)\"")
+    echo "run $run, $target: ${job:-no job}"
+    [ "$job" = "completed success" ] || { echo "error: the $target job of run $run hasn't succeeded" >&2; exit 1; }
+    gh run download "$run" -R "$suite" -n "folio-$target" -D "$work/in/$target"
+  done
 else
   draft=$(gh release view "v$version" -R ludovic111/folio --json isDraft -q .isDraft)
   [ "$draft" = true ] || { echo "error: v$version of ludovic111/folio isn't a draft release" >&2; exit 1; }
   gh release download "v$version" -R ludovic111/folio -D "$work/in"
 fi
 
-# The Linux files and their signatures, flattened (artifacts come one folder per target).
-find "$work/in" -type f -name 'folio-linux-*' -exec cp {} "$dist/" \;
-ls "$dist"/folio-linux-* > /dev/null 2>&1 || { echo "error: no folio-linux-* files found" >&2; exit 1; }
+# The Linux and macOS files and their signatures, flattened (artifacts come one folder per target).
+find "$work/in" -type f \( -name 'folio-linux-*' -o -name 'folio-macos-*' \) -exec cp {} "$dist/" \;
+for platform in linux macos; do
+  ls "$dist"/folio-$platform-* > /dev/null 2>&1 || { echo "error: no folio-$platform-* files found" >&2; exit 1; }
+done
 
 # What changed: CHANGELOG.md's section for this version.
 awk -v v="$version" '/^## /{p = ($2 == v); next} p' "$root/CHANGELOG.md" | sed -e '/./,$!d' > "$work/notes.md"

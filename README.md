@@ -9,7 +9,7 @@
 
 <h1 align="center">folio</h1>
 
-<p align="center"><strong>Documents, sheets and slides in one file.</strong> (beta, Linux; macOS and Windows coming soon)<br/>
+<p align="center"><strong>Documents, sheets and slides in one file.</strong> (beta, Linux and macOS; Windows coming soon)<br/>
 Native Rust app (GPUI) · opens and writes Word, Excel, PowerPoint and OpenDocument · drivable by your AI (MCP, CLI, built-in agent).<br/>
 Part of <a href="https://lsuite.xyz">lsuite</a>, the free, open-source creative suite your AI can drive.</p>
 
@@ -55,8 +55,8 @@ chrome; the paper stays white.
 
 ## Install
 
-folio is in beta for **Linux** (x86_64; an AppImage or a `.deb`). **macOS and Windows are coming
-soon.**
+folio is in beta for **Linux** (x86_64; an AppImage or a `.deb`) and **macOS** (Apple Silicon and
+Intel; a `.dmg`). **Windows is coming soon.**
 
 Get folio in the [lsuite app](https://lsuite.xyz/launcher), which installs and updates the lsuite
 apps; no account is needed. folio is free and open source: you can also build it from source
@@ -64,8 +64,8 @@ apps; no account is needed. folio is free and open source: you can also build it
 
 folio checks for updates through lsuite (`https://lsuite.xyz/api/apps/folio/latest.json`, no
 account), verifies every download with the embedded release key, and stages the update for restart
-(automatic installation is opt-in). The AppImage updates in place with a rollback copy; the `.deb`
-is updated by the lsuite app.
+(automatic installation is opt-in). The macOS app and the AppImage update in place with a rollback
+copy; the `.deb` is updated by the lsuite app.
 
 ## Drive it from AI and scripts
 
@@ -80,7 +80,7 @@ folio-cli --file plan.folio doc.write --markdown "# Plan\n\nShip on **Friday**."
 folio-cli convert report.docx report.pdf
 ```
 
-The **Agent** panel (Ctrl+J) runs the model you already have: Claude Code, Codex, an Anthropic,
+The **Agent** panel (Ctrl+J, ⌘J on macOS) runs the model you already have: Claude Code, Codex, an Anthropic,
 OpenAI, OpenRouter, Gemini or Mistral key, or a local model (Ollama, LM Studio). Every agent, the built-in one or yours over MCP, gets folio's **harness**: an
 office expert's brief, twelve skills (a report from notes, a budget, a deck from a document…), the
 live state of the file before every step, pictures of the pages, slides and sheets it made
@@ -137,18 +137,21 @@ cargo run -p folio                      # the window
 cargo run -p folio-cli -- --help
 cargo test --workspace
 scripts/bundle-linux.sh                 # the AppImage and the .deb
+scripts/bundle-macos.sh                 # folio.app, a .dmg and the updater archive (on a Mac;
+                                        # aarch64-apple-darwin or x86_64-apple-darwin)
 ```
 
-The macOS and Windows code and scripts stay in the source (`scripts/bundle-macos.sh`,
-`scripts/bundle-windows.sh`), but they are not built or shipped while folio is in beta: they are
-coming soon.
+The Windows code and script stay in the source (`scripts/bundle-windows.sh`), but Windows isn't
+built or shipped while folio is in beta: it is coming soon. CI builds macOS on the Mac mini (a
+self-hosted runner) when started by hand: `gh workflow run CI --ref <branch>`.
 
 ### Signed releases
 
-Linux only for now. Maintainers dispatch `ludovic111/kimchi`'s `suite-build.yml` with `app=folio`
-and the full, published commit SHA, then publish the run's signed Linux artifact to lsuite's build
-store with `scripts/publish-build.sh X.Y.Z <run-id>` (it needs only the run's Linux job to have
-succeeded, takes only the Linux files, checks every signature, writes a Linux-only `latest.json` with
+Linux and macOS. The suite's Apple credentials stay in the kimchi repository. Maintainers dispatch
+`ludovic111/kimchi`'s `suite-build.yml` with `app=folio` and the full, published commit SHA, then
+publish the run's signed Linux and macOS artifacts to lsuite's build store with
+`scripts/publish-build.sh X.Y.Z <run-id>` (it needs the run's Linux and both macOS jobs to have
+succeeded, takes the Linux and macOS files, checks every signature, writes `latest.json` with
 `folio-release manifest` and `SHA256SUMS`, and creates `folio-vX.Y.Z` in `ludovic111/lsuite-builds`;
 `DRY_RUN=1` stops before publishing). `.github/workflows/release.yml` makes a draft release instead,
 published the same way with `scripts/publish-build.sh X.Y.Z`. Keep private signing keys outside the

@@ -1,13 +1,15 @@
 name: Release
 
-# Builds folio for Linux with the scripts in scripts/ and attaches everything to a draft GitHub
-# release. Linux only while lsuite is in beta: macOS and Windows are coming soon (their scripts
-# and matrix entries stay, commented out below). The draft is never published here:
+# Builds folio for Linux and macOS (Apple Silicon and Intel) with the scripts in scripts/ and
+# attaches everything to a draft GitHub release. Windows is coming soon (its script and matrix entry
+# stay, commented out below). The macOS builds run on the Mac mini (a self-hosted runner;
+# MAC_RUNNER=macos-latest sends them back to GitHub). The draft is never published here:
 # `scripts/publish-build.sh <version>` copies it to ludovic111/lsuite-builds (lsuite's
 # DISTRIBUTION.md), where the lsuite app and folio's updater get it, and deletes the draft.
 #
-# Asset names are stable (no version): folio-linux-x86_64.AppImage, folio-linux-x86_64.deb (plus
-# SHA256SUMS); later folio-macos-{arm64,x86_64}.dmg and .app.tar.gz, folio-windows-x86_64.exe and .zip.
+# Asset names are stable (no version): folio-linux-x86_64.AppImage, folio-linux-x86_64.deb,
+# folio-macos-{arm64,x86_64}.dmg and .app.tar.gz (plus SHA256SUMS); later folio-windows-x86_64.exe
+# and .zip.
 on:
   workflow_dispatch:
 
@@ -21,7 +23,7 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'mac' && (vars.MAC_RUNNER || 'ludovics-mac-mini') || matrix.os }}
     timeout-minutes: 90
     env:
       HAS_APPLE_SIGNING: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 != '' && secrets.APPLE_API_KEY_P8_BASE64 != '' }}
@@ -29,9 +31,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Both macOS builds on the Mac mini (Apple Silicon); the Intel one is cross-compiled.
+          - { name: macOS (Apple Silicon), os: mac, target: aarch64-apple-darwin, script: bundle-macos.sh }
+          - { name: macOS (Intel), os: mac, target: x86_64-apple-darwin, script: bundle-macos.sh }
           # Coming soon:
-          # - { name: macOS (Apple Silicon), os: macos-latest, target: aarch64-apple-darwin, script: bundle-macos.sh }
-          # - { name: macOS (Intel), os: macos-15-intel, target: x86_64-apple-darwin, script: bundle-macos.sh }
           # - { name: Windows, os: windows-latest, target: x86_64-pc-windows-msvc, script: bundle-windows.sh }
           - { name: Linux, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, script: bundle-linux.sh }
     defaults:
@@ -39,6 +42,13 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On the Mac mini, keep target/ between runs (incremental builds).
+          clean: ${{ runner.environment == 'github-hosted' }}
+
+      # A self-hosted runner keeps target/ between jobs: no other target's packages may be uploaded.
+      - name: Empty target/dist
+        run: rm -rf target/dist
 
       - name: Check the tag matches the version
         if: startsWith(github.ref, 'refs/tags/')
@@ -70,6 +80,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
         with:
           key: ${{ matrix.target }}
 
@@ -110,10 +121,18 @@ jobs:
             target/release/folio-release verify "$file" --version "$version"
           done
 
+      # The Mac mini runs as its owner's account: delete the throwaway keychain and put the user's
+      # keychain search list back exactly as prepare-apple-signing.sh found it.
       - name: Remove signing keychain
         if: always() && runner.os == 'macOS'
         run: |
           if [ -f "$RUNNER_TEMP/signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/signing.keychain-db"; fi
+          if [ -f "$RUNNER_TEMP/keychains-before" ]; then
+            keychains=()
+            while IFS= read -r k; do [ -n "$k" ] && keychains+=("$k"); done < "$RUNNER_TEMP/keychains-before"
+            security list-keychains -d user -s ${keychains[@]+"${keychains[@]}"}
+            rm -f "$RUNNER_TEMP/keychains-before"
+          fi
           rm -f "$RUNNER_TEMP/notary.p8"
 
       - uses: actions/upload-artifact@v4
@@ -154,8 +173,9 @@ jobs:
           cat >> "$RUNNER_TEMP/notes.md" <<'NOTES'
 
           ### Download
-          folio is in beta for Linux: `folio-linux-x86_64.AppImage` or `folio-linux-x86_64.deb`, through
-          the lsuite app. macOS and Windows are coming soon.
+          folio is in beta for Linux and macOS, through the lsuite app: `folio-linux-x86_64.AppImage` or
+          `folio-linux-x86_64.deb`; `folio-macos-arm64.dmg` (Apple Silicon) or `folio-macos-x86_64.dmg`
+          (Intel). Windows is coming soon.
           NOTES
           (cd dist && sha256sum folio-* > SHA256SUMS)
           ls -l dist
