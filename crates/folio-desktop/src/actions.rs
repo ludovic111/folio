@@ -39,7 +39,6 @@ actions!(
         PrevPage,
         Find,
         OpenPlugins,
-        OpenAccount,
         // Text (documents and text boxes).
         Bold,
         Italic,
@@ -351,7 +350,7 @@ pub fn keys_label_for(keys: &str, mac: bool) -> String {
 
 pub fn menus() -> Vec<Menu> {
     vec![
-        Menu::new("folio").items([MenuItem::action("About folio", About), MenuItem::separator(), MenuItem::action("Settings…", OpenSettings), MenuItem::action("Plugins…", OpenPlugins), MenuItem::action("lsuite AI…", OpenAccount), MenuItem::separator(), MenuItem::action("Quit folio", Quit)]),
+        Menu::new("folio").items([MenuItem::action("About folio", About), MenuItem::separator(), MenuItem::action("Settings…", OpenSettings), MenuItem::action("Plugins…", OpenPlugins), MenuItem::separator(), MenuItem::action("Quit folio", Quit)]),
         Menu::new("File").items([
             MenuItem::action("New", NewFile),
             MenuItem::action("Open or Import…", OpenFile),

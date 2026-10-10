@@ -19,9 +19,9 @@ pub struct Settings {
     pub plugins: PluginSettings,
 }
 
-/// What can run the built-in agent (`settings.agent.provider`): lsuite AI first, then the
-/// person's own coding CLIs, model APIs and local servers.
-pub const AGENT_PROVIDERS: &[&str] = &["lsuite", "claude-code", "codex", "anthropic", "openai", "openrouter", "gemini", "mistral", "ollama", "lmstudio", "openai-compatible"];
+/// What can run the built-in agent (`settings.agent.provider`): the person's own coding CLIs,
+/// model APIs and local servers.
+pub const AGENT_PROVIDERS: &[&str] = &["claude-code", "codex", "anthropic", "openai", "openrouter", "gemini", "mistral", "ollama", "lmstudio", "openai-compatible"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
@@ -39,7 +39,7 @@ pub struct AgentSettings {
 
 impl Default for AgentSettings {
     fn default() -> Self {
-        Self { enabled: true, permissions: Permissions::default(), provider: "lsuite".into(), model: String::new(), base_url: String::new() }
+        Self { enabled: true, permissions: Permissions::default(), provider: "claude-code".into(), model: String::new(), base_url: String::new() }
     }
 }
 
@@ -138,12 +138,18 @@ pub struct PluginSettings {
 
 impl Settings {
     /// Reads `settings.json`. A file that can't be read as settings is kept as
-    /// `settings.json.bad` (so the next save doesn't lose it) and the defaults are used.
+    /// `settings.json.bad` (so the next save doesn't lose it) and the defaults are used. A provider
+    /// folio no longer has (the `lsuite` of 0.1 and 0.2) becomes the default one.
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("settings.json");
         let Ok(bytes) = std::fs::read(&path) else { return Self::default() };
-        match serde_json::from_slice(&bytes) {
-            Ok(s) => s,
+        match serde_json::from_slice::<Self>(&bytes) {
+            Ok(mut s) => {
+                if !AGENT_PROVIDERS.contains(&s.agent.provider.as_str()) {
+                    s.agent.provider = AgentSettings::default().provider;
+                }
+                s
+            }
             Err(e) => {
                 tracing::warn!("{} isn't valid ({e}); kept as settings.json.bad, using the defaults", path.display());
                 let _ = std::fs::rename(&path, dir.join("settings.json.bad"));
@@ -243,5 +249,16 @@ mod tests {
         assert!(s.set("appearance.mode", Value::String("blue".into())).is_err());
         assert!(s.set("agent.permissions.files", Value::String("yes".into())).is_err());
         assert!(s.set("nope.key", Value::Bool(true)).is_err());
+    }
+
+    #[test]
+    fn old_settings_still_load() {
+        let dir = tempfile::tempdir().unwrap();
+        // Written by 0.2: lsuite AI as the provider, and a setting that no longer exists.
+        std::fs::write(dir.path().join("settings.json"), r#"{ "agent": { "provider": "lsuite", "model": "" }, "account": { "plan": "pro" }, "appearance": { "mode": "dark" } }"#).unwrap();
+        let s = Settings::load(dir.path());
+        assert_eq!(s.agent.provider, "claude-code");
+        assert_eq!(s.appearance.mode, "dark");
+        assert!(!dir.path().join("settings.json.bad").exists());
     }
 }

@@ -131,17 +131,10 @@ pub fn coming_from() -> Value {
 
 fn onboarding(s: &Session) -> Value {
     let st = s.settings();
-    let account = crate::account::read();
     json!({
         "done": st.onboarding.is_done(),
         "comingFrom": st.onboarding.coming_from,
         "suites": coming_from(),
-        "lsuiteAi": {
-            "signedIn": account.is_some(),
-            "email": account.as_ref().map(|a| a.email.clone()),
-            "plan": account.as_ref().map(|a| a.plan.clone()),
-            "pitch": "No setup. Sign in and your agent works.",
-        },
         "providers": crate::settings::AGENT_PROVIDERS,
         "agent": { "enabled": st.agent.enabled, "provider": st.agent.provider },
         "author": st.author(),

@@ -1,4 +1,4 @@
-//! The tool loop for lsuite AI, the API and the local providers: ask the model, run the tools
+//! The tool loop for the API and the local providers: ask the model, run the tools
 //! it calls through the registry, hand back the results, until it answers.
 
 mod anthropic;
@@ -60,7 +60,7 @@ impl Api {
         let info = c.provider.info();
         let http = http::client();
         let base = c.base_url();
-        let mut key = c.api_key(&run.session);
+        let key = c.api_key(&run.session);
         let mut model = c.model();
         let mut wire = info.wire;
         let missing_key = || {
@@ -71,13 +71,6 @@ impl Api {
         };
         match c.provider {
             ProviderKind::ClaudeCode | ProviderKind::Codex => return Err("This provider runs as a CLI.".into()),
-            ProviderKind::Lsuite => {
-                let account = folio_control::account::read().ok_or(crate::lsuite::SIGN_IN)?;
-                if c.model.trim().is_empty() {
-                    model = crate::lsuite::default_model(&folio_control::account::server(), &account.token).await;
-                }
-                key = Some(account.token);
-            }
             // Another address is a compatible server, which may not need a key.
             ProviderKind::OpenAi if base != info.default_base_url => wire = Wire::Chat(Quirks { tool_limit: Some(128), usage: false, ..Quirks::STANDARD }),
             ProviderKind::OpenAiCompatible if c.base_url.trim().is_empty() => {

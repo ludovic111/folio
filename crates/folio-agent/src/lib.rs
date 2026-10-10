@@ -1,16 +1,14 @@
 //! folio-agent: the engine behind the Agent panel.
 //!
-//! lsuite AI comes first: sign in once and the agent works, no key and no CLI to install (it is
-//! the Anthropic Messages API served by lsuite, `folio_control::account::api_base()`, with the
-//! account's token). Bringing your own stays free: the person's Claude Code or Codex, a key for a
-//! model API (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral), or a model on a local
-//! server (Ollama, LM Studio, any OpenAI-compatible one). [`providers`] describes each.
+//! The agent runs on what the person brings: their Claude Code or Codex, a key for a model API
+//! (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral), or a model on a local server (Ollama,
+//! LM Studio, any OpenAI-compatible one). [`providers`] describes each.
 //!
 //! Whatever the provider, the agent acts only through folio's command registry
 //! (`folio_control::call`), so permissions (`settings.agent.permissions`), validation and the
 //! one undo history behave exactly as for MCP and the CLI.
 //!
-//! * lsuite AI, API and local providers get every registry command an agent may run as a tool
+//! * API and local providers get every registry command an agent may run as a tool
 //!   (`family_verb`) and are run here, as [`Source::Agent`].
 //! * Claude Code and Codex run as child processes with `folio-mcp --live` attached; their
 //!   commands reach the app through the bridge as [`Source::Mcp`] and are picked up from the
@@ -26,7 +24,6 @@ mod cli;
 pub mod context;
 mod host;
 mod http;
-pub mod lsuite;
 pub mod models;
 pub mod providers;
 mod status;
@@ -69,8 +66,6 @@ pub const MAX_HISTORY: usize = 80;
 /// about each.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProviderKind {
-    #[serde(rename = "lsuite")]
-    Lsuite,
     #[serde(rename = "claude-code")]
     ClaudeCode,
     #[serde(rename = "codex")]
@@ -94,9 +89,8 @@ pub enum ProviderKind {
 }
 
 impl ProviderKind {
-    /// Every provider, lsuite AI first, then the CLIs, the model APIs, the local servers.
-    pub const ALL: [ProviderKind; 11] = [
-        ProviderKind::Lsuite,
+    /// Every provider: the CLIs, the model APIs, the local servers.
+    pub const ALL: [ProviderKind; 10] = [
         ProviderKind::ClaudeCode,
         ProviderKind::Codex,
         ProviderKind::Anthropic,
@@ -126,14 +120,13 @@ impl ProviderKind {
         self.info().group
     }
 
-    /// An id, or a name people use for it (`claude`, `google`, `lm-studio`, `lsuite-ai`…).
+    /// An id, or a name people use for it (`claude`, `google`, `lm-studio`…).
     pub fn parse(id: &str) -> Option<Self> {
         let id = id.trim().to_ascii_lowercase().replace([' ', '_'], "-");
         if let Some(i) = providers::ALL.iter().find(|i| i.id == id) {
             return Some(i.kind);
         }
         Some(match id.as_str() {
-            "lsuite-ai" | "lsuiteai" | "lsuite.xyz" => ProviderKind::Lsuite,
             "claude" | "claudecode" => ProviderKind::ClaudeCode,
             "google" | "google-gemini" | "ai-studio" | "aistudio" => ProviderKind::Gemini,
             "local" => ProviderKind::Ollama,
@@ -144,8 +137,7 @@ impl ProviderKind {
     }
 
     /// Model used when `settings.agent.model` is empty. Empty for the CLIs (their own default)
-    /// and the local servers (the first model they have). lsuite AI uses the plan's default
-    /// model ([`lsuite::default_model`]); this is the fallback.
+    /// and the local servers (the first model they have).
     pub fn default_model(self) -> &'static str {
         self.info().default_model
     }
@@ -173,7 +165,7 @@ pub struct AgentConfig {
     /// Empty: the provider's default.
     pub model: String,
     /// Empty: the provider's default (API providers and local servers; also lets an
-    /// OpenAI-compatible server or a proxy stand in). lsuite AI always uses the account's server.
+    /// OpenAI-compatible server or a proxy stand in).
     pub base_url: String,
     /// Model round trips before the run stops (every provider but the CLIs).
     pub max_steps: usize,
@@ -184,10 +176,10 @@ impl AgentConfig {
         Self { provider, model: String::new(), base_url: String::new(), max_steps: MAX_STEPS }
     }
 
-    /// An unknown provider id falls back to lsuite AI, the settings default.
+    /// An unknown provider id falls back to Claude Code, the settings default.
     pub fn from_settings(s: &AgentSettings) -> Self {
         Self {
-            provider: ProviderKind::parse(&s.provider).unwrap_or(ProviderKind::Lsuite),
+            provider: ProviderKind::parse(&s.provider).unwrap_or(ProviderKind::ClaudeCode),
             model: s.model.trim().to_string(),
             base_url: s.base_url.trim().to_string(),
             max_steps: MAX_STEPS,
@@ -199,19 +191,14 @@ impl AgentConfig {
         if self.model.trim().is_empty() { self.provider.default_model().to_string() } else { self.model.trim().to_string() }
     }
 
-    /// The configured base URL without a trailing slash, else the provider's default. For lsuite
-    /// AI, the account's endpoint (`<server>/api/ai`).
+    /// The configured base URL without a trailing slash, else the provider's default.
     pub fn base_url(&self) -> String {
-        if self.provider == ProviderKind::Lsuite {
-            return folio_control::account::api_base();
-        }
         let b = self.base_url.trim();
         let b = if b.is_empty() { self.provider.default_base_url() } else { b };
         b.trim_end_matches('/').to_string()
     }
 
-    /// The API key: the keychain, else the provider's environment variables; for lsuite AI the
-    /// signed-in account's token.
+    /// The API key: the keychain, else the provider's environment variables.
     pub fn api_key(&self, session: &Session) -> Option<String> {
         key_for(session, self.provider).map(|(k, _)| k)
     }
@@ -223,15 +210,10 @@ impl AgentConfig {
 pub enum KeySource {
     Keychain,
     Env(&'static str),
-    /// The lsuite account on this computer (`~/.lsuite/account.json`).
-    Account,
 }
 
 /// A provider's key and where it came from: the keychain, else its environment variables.
 pub fn key_for(session: &Session, kind: ProviderKind) -> Option<(String, KeySource)> {
-    if kind == ProviderKind::Lsuite {
-        return folio_control::account::read().map(|a| (a.token, KeySource::Account));
-    }
     let spec = kind.info().key?;
     if let Some(k) = session.secret(spec.id) {
         return Some((k, KeySource::Keychain));

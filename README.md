@@ -58,14 +58,14 @@ chrome; the paper stays white.
 folio is in beta for **Linux** (x86_64; an AppImage or a `.deb`). **macOS and Windows are coming
 soon.**
 
-Get folio in the [lsuite app](https://lsuite.xyz/launcher), which installs and updates the five
-lsuite apps with a free lsuite account. folio stays free and open source: you can also build it
-from source (below).
+Get folio in the [lsuite app](https://lsuite.xyz/launcher), which installs and updates the lsuite
+apps; no account is needed. folio is free and open source: you can also build it from source
+(below).
 
-folio checks for updates through lsuite with the account the lsuite app signed in, verifies every
-download with the embedded release key, and stages the update for restart (automatic installation
-is opt-in). The AppImage updates in place with a rollback copy; the `.deb` is updated by the lsuite
-app. Signed out, Settings → Updates asks you to sign in in the lsuite app.
+folio checks for updates through lsuite (`https://lsuite.xyz/api/apps/folio/latest.json`, no
+account), verifies every download with the embedded release key, and stages the update for restart
+(automatic installation is opt-in). The AppImage updates in place with a rollback copy; the `.deb`
+is updated by the lsuite app.
 
 ## Drive it from AI and scripts
 
@@ -80,9 +80,8 @@ folio-cli --file plan.folio doc.write --markdown "# Plan\n\nShip on **Friday**."
 folio-cli convert report.docx report.pdf
 ```
 
-The **Agent** panel (Ctrl+J) runs **lsuite AI** with no setup once you sign in, or the model you
-already have: Claude Code, Codex, an Anthropic, OpenAI, OpenRouter or Mistral key, or a local model
-(Ollama, LM Studio). Every agent, the built-in one or yours over MCP, gets folio's **harness**: an
+The **Agent** panel (Ctrl+J) runs the model you already have: Claude Code, Codex, an Anthropic,
+OpenAI, OpenRouter, Gemini or Mistral key, or a local model (Ollama, LM Studio). Every agent, the built-in one or yours over MCP, gets folio's **harness**: an
 office expert's brief, twelve skills (a report from notes, a budget, a deck from a document…), the
 live state of the file before every step, pictures of the pages, slides and sheets it made
 (`harness.look`) and objective checks (`harness.check`) it runs before saying it is done.
@@ -119,7 +118,7 @@ crates/
   folio-core      the model: documents, sheets, decks, live links, one undo history, the .folio file
   folio-layout    text layout and pagination (cosmic-text), slide text, chart geometry, rasters
   folio-io        DOCX, XLSX, PPTX, ODF, CSV, Markdown, HTML and PDF
-  folio-control   the command registry, session, permissions, loopback bridge, lsuite discovery and AI account, plugins
+  folio-control   the command registry, session, permissions, loopback bridge, lsuite discovery, plugins
   folio-agent     the built-in agent
   folio-plugin    the plugin SDK (spreadsheet functions behind a frozen C ABI)
   folio-desktop   the window (GPUI), binary `folio`

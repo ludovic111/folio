@@ -153,11 +153,10 @@ class Checks:
         return sum(1 for r in self.results if r.ok)
 
 
-def env_for(home: Path, keep_account: bool) -> dict[str, str]:
+def env_for(home: Path) -> dict[str, str]:
     env = dict(os.environ)
     env["FOLIO_DATA_DIR"] = str(home / "data")
     env["FOLIO_CONFIG_DIR"] = str(home / "config")
     env["FOLIO_NO_UPDATE"] = "1"
-    if not keep_account:
-        env["LSUITE_HOME"] = str(home / "lsuite")
+    env["LSUITE_HOME"] = str(home / "lsuite")
     return env

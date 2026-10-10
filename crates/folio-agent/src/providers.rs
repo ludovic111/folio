@@ -14,8 +14,6 @@ use crate::ProviderKind;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Group {
-    /// lsuite AI: the suite's subscription, nothing to set up.
-    Lsuite,
     /// A coding CLI installed on this computer, with `folio-mcp --live` attached.
     Cli,
     /// A model API, with a key.
@@ -25,11 +23,10 @@ pub enum Group {
 }
 
 impl Group {
-    pub const ALL: [Group; 4] = [Group::Lsuite, Group::Cli, Group::Api, Group::Local];
+    pub const ALL: [Group; 3] = [Group::Cli, Group::Api, Group::Local];
 
     pub fn label(self) -> &'static str {
         match self {
-            Group::Lsuite => "lsuite AI",
             Group::Cli => "On this computer",
             Group::Api => "Model APIs",
             Group::Local => "Local servers",
@@ -38,7 +35,6 @@ impl Group {
 
     pub fn id(self) -> &'static str {
         match self {
-            Group::Lsuite => "lsuite",
             Group::Cli => "cli",
             Group::Api => "api",
             Group::Local => "local",
@@ -102,9 +98,9 @@ pub struct Info {
     /// One plain line on what it is.
     pub tagline: &'static str,
     pub wire: Wire,
-    /// Model used when none is chosen (empty: the CLI's or server's own; lsuite AI: the plan's).
+    /// Model used when none is chosen (empty: the CLI's or server's own).
     pub default_model: &'static str,
-    /// Empty for the CLIs, lsuite AI (the account's server) and custom servers (the person gives it).
+    /// Empty for the CLIs and custom servers (the person gives it).
     pub default_base_url: &'static str,
     /// The address is the person's to give (a custom server).
     pub needs_base_url: bool,
@@ -123,23 +119,6 @@ const fn key(id: &'static str, env: &'static [&'static str], url: &'static str, 
 }
 
 pub const ALL: &[Info] = &[
-    // ---- lsuite AI ----
-    Info {
-        kind: ProviderKind::Lsuite,
-        id: "lsuite",
-        label: "lsuite AI",
-        group: Group::Lsuite,
-        tagline: "No setup. Sign in and your agent works.",
-        wire: Wire::Anthropic,
-        default_model: "claude-sonnet-5-5",
-        default_base_url: "",
-        needs_base_url: false,
-        base_url_hint: "",
-        key: None,
-        models: &["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5"],
-        website: "https://lsuite.xyz/ai",
-        logo: "lsuite",
-    },
     // ---- on this computer ----
     Info {
         kind: ProviderKind::ClaudeCode,
@@ -319,7 +298,7 @@ mod tests {
     fn the_table_matches_the_settings_ids() {
         let ids: Vec<&str> = ALL.iter().map(|i| i.id).collect();
         assert_eq!(ids, folio_control::settings::AGENT_PROVIDERS);
-        assert_eq!(ALL[0].kind, ProviderKind::Lsuite, "lsuite AI comes first");
+        assert_eq!(ALL[0].kind, ProviderKind::ClaudeCode, "the person's own Claude Code comes first");
         for i in ALL {
             assert_eq!(i.kind.id(), i.id);
             assert_eq!(ProviderKind::parse(i.id), Some(i.kind));

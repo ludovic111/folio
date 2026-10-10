@@ -22,7 +22,6 @@ pub enum Dialog {
     Export,
     Open,
     Plugins,
-    Account,
     Palette,
     Shortcuts,
     /// Insert a table / chart / link: what to insert and on which page.
@@ -38,7 +37,6 @@ impl Dialog {
             Dialog::Export => "export",
             Dialog::Open => "open",
             Dialog::Plugins => "plugins",
-            Dialog::Account => "account",
             Dialog::Palette => "palette",
             Dialog::Shortcuts => "shortcuts",
             Dialog::Insert { .. } => "insert",
@@ -203,8 +201,6 @@ pub struct Store {
     pub presenting: Option<(Id, usize, bool)>,
     /// Commands from the agent, MCP and the CLI (the agent panel's cards).
     pub commands: Vec<CommandRecord>,
-    /// lsuite AI, as `account.status` last answered.
-    pub account: Value,
     /// Recent files (`file.recent`).
     pub recent: Vec<Value>,
     next_toast: u64,
@@ -271,14 +267,12 @@ impl Store {
             toasts: vec![],
             presenting: None,
             commands: vec![],
-            account: json!({ "signedIn": false }),
             recent: vec![],
             next_toast: 1,
             _pump: pump,
         };
         s.pull();
         s.refresh_recent();
-        s.refresh_account(cx);
         s
     }
 
@@ -399,7 +393,6 @@ impl Store {
                 cx.defer(crate::app::apply_theme_setting);
                 cx.notify();
             }
-            Event::AccountChanged => self.refresh_account(cx),
             Event::PluginsChanged => cx.notify(),
         }
     }
@@ -412,20 +405,6 @@ impl Store {
             .take(12)
             .map(|p| json!({ "path": p, "name": p.file_name().map(|n| n.to_string_lossy().into_owned()), "modified": std::fs::metadata(&p).and_then(|m| m.modified()).ok().map(chrono::DateTime::<chrono::Utc>::from) }))
             .collect();
-    }
-
-    pub fn refresh_account(&mut self, cx: &mut Context<Self>) {
-        let task = gpui_tokio::Tokio::spawn(cx, async move { folio_control::account::status(true).await });
-        cx.spawn(async move |this, cx| {
-            if let Ok(Ok(v)) = task.await {
-                this.update(cx, |s, cx| {
-                    s.account = v;
-                    cx.notify();
-                })
-                .ok();
-            }
-        })
-        .detach();
     }
 
     // ---- running commands ------------------------------------------------

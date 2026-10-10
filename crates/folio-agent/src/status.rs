@@ -21,10 +21,6 @@ use crate::{AgentConfig, KeySource, ProviderKind, key_for};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Next {
-    /// Sign in to lsuite AI.
-    Account,
-    /// Pick an lsuite AI plan (the account is on Free), or manage it.
-    Plan,
     /// Paste an API key.
     Key,
     /// Install the CLI or the app.
@@ -41,8 +37,7 @@ pub enum Next {
     Restart,
 }
 
-/// A button for the next thing to do: a link to open, a command to run in a terminal, or a folio
-/// command to run (`account.signIn`).
+/// A button for the next thing to do: a link to open, or a command to run in a terminal.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
@@ -51,22 +46,15 @@ pub struct Action {
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
-    /// A folio command that does it (`account.signIn`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub folio: Option<String>,
 }
 
 impl Action {
     fn link(label: &str, url: &str) -> Option<Self> {
-        Some(Self { label: label.into(), url: Some(url.into()), command: None, folio: None })
+        Some(Self { label: label.into(), url: Some(url.into()), command: None })
     }
 
     fn run(label: &str, command: &str) -> Option<Self> {
-        Some(Self { label: label.into(), url: None, command: Some(command.into()), folio: None })
-    }
-
-    fn folio(label: &str, command: &str) -> Option<Self> {
-        Some(Self { label: label.into(), url: None, command: None, folio: Some(command.into()) })
+        Some(Self { label: label.into(), url: None, command: Some(command.into()) })
     }
 }
 
@@ -95,7 +83,7 @@ pub struct KeyStatus {
 pub struct ProviderStatus {
     pub provider: ProviderKind,
     pub label: &'static str,
-    /// `lsuite`, `cli` (on this computer), `api` (model APIs) or `local` (local servers).
+    /// `cli` (on this computer), `api` (model APIs) or `local` (local servers).
     pub group: Group,
     pub group_label: &'static str,
     /// One plain line on what it is.
@@ -106,12 +94,6 @@ pub struct ProviderStatus {
     pub active: bool,
     /// What to tell the person ("Claude Code 2.1 is installed and signed in.").
     pub message: String,
-    /// lsuite AI, signed in: "Pro · 38 % used · resets 1 Nov".
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    /// lsuite AI: where the plan is managed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub manage_url: Option<String>,
     /// What to do next when it isn't ready.
     pub next: Option<Next>,
     /// The button for it.
@@ -161,8 +143,6 @@ pub async fn status_of(session: &Arc<Session>, kind: ProviderKind) -> ProviderSt
         ready: false,
         active: kind == active,
         message: String::new(),
-        summary: None,
-        manage_url: None,
         next: None,
         action: None,
         detail: config.base_url(),
@@ -177,7 +157,6 @@ pub async fn status_of(session: &Arc<Session>, kind: ProviderKind) -> ProviderSt
         website: info.website,
     };
     match kind {
-        ProviderKind::Lsuite => lsuite_status(&mut s).await,
         ProviderKind::ClaudeCode | ProviderKind::Codex => cli_status(session, kind, &mut s).await,
         ProviderKind::Ollama => ollama_status(&config, &mut s).await,
         ProviderKind::LmStudio => lmstudio_status(session, &config, &mut s).await,
@@ -197,7 +176,6 @@ fn key_status(session: &Session, kind: ProviderKind) -> Option<KeyStatus> {
     let source = found.map(|(_, src)| match src {
         KeySource::Keychain => "keychain".to_string(),
         KeySource::Env(var) => var.to_string(),
-        KeySource::Account => "account".to_string(),
     });
     let savable = crate::status::SAVABLE_KEYS.contains(&spec.id);
     Some(KeyStatus { required: spec.required, saved: session.secret(spec.id).is_some(), source, env: spec.env.to_vec(), url: spec.url, hint: spec.hint, savable })
@@ -205,48 +183,6 @@ fn key_status(session: &Session, kind: ProviderKind) -> Option<KeyStatus> {
 
 /// The key ids `app.setAgentKey` saves in the keychain.
 pub(crate) const SAVABLE_KEYS: &[&str] = &["anthropic", "openai", "openrouter", "gemini", "mistral"];
-
-/// lsuite AI: signed in or not, the plan and the allowance (`GET /api/account/me`).
-async fn lsuite_status(s: &mut ProviderStatus) {
-    use folio_control::account;
-    s.base_url = account::api_base();
-    s.detail = s.base_url.clone();
-    s.manage_url = Some(format!("{}/account", account::server()));
-    let Some(acc) = account::read() else {
-        s.message = crate::lsuite::SIGN_IN.into();
-        s.next = Some(Next::Account);
-        s.action = Action::folio("Sign in", "account.signIn");
-        return;
-    };
-    s.detail = acc.email.clone();
-    match account::me(&account::server(), &acc.token).await {
-        Ok(me) => {
-            let summary = account::summary(&me);
-            if let Some(u) = me["manageUrl"].as_str() {
-                s.manage_url = Some(u.to_string());
-            }
-            if let Some(m) = me["defaultModel"].as_str().filter(|m| !m.is_empty()) {
-                s.default_model = m.to_string();
-            }
-            s.models = me["models"].as_array().into_iter().flatten().filter_map(|m| m.as_str().or_else(|| m["id"].as_str())).map(str::to_string).collect();
-            if me["plan"].as_str().is_none_or(|p| p == "free") {
-                s.message = format!("Signed in as {}, on Free: lsuite AI needs a plan (bring your own provider stays free).", acc.email);
-                s.next = Some(Next::Plan);
-                s.action = Action::link("Manage plan", s.manage_url.as_deref().unwrap_or(""));
-            } else {
-                s.ready = true;
-                s.message = format!("Signed in as {}. {summary}.", acc.email);
-            }
-            s.summary = Some(summary);
-        }
-        Err(e) => {
-            // Signed in but the server didn't answer: a message may still go through (or say why).
-            s.ready = true;
-            s.message = format!("Signed in as {}; lsuite didn't answer just now ({e}).", acc.email);
-            s.summary = (!acc.plan.is_empty()).then(|| acc.plan.clone());
-        }
-    }
-}
 
 /// `console.mistral.ai/api-keys` for `https://console.mistral.ai/api-keys`.
 fn short_url(url: &str) -> &str {

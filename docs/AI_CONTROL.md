@@ -9,7 +9,7 @@ undo history. The full list, generated from the registry, is [COMMANDS.md](COMMA
 
 | Client | How |
 | --- | --- |
-| The Agent panel | Ctrl+J in the window. lsuite AI works without setup once signed in; Claude Code, Codex, API keys (Anthropic, OpenAI, OpenRouter, Mistral) and local models (Ollama, LM Studio) work too. |
+| The Agent panel | Ctrl+J in the window. It runs what you bring: Claude Code, Codex, API keys (Anthropic, OpenAI, OpenRouter, Gemini, Mistral) or local models (Ollama, LM Studio, any OpenAI-compatible server). |
 | MCP | `claude mcp add folio -- folio-mcp --live` drives the running app; `folio-mcp --file report.folio` works on a file without it. `folio-cli mcp-config` prints the lines for Claude Code, Codex, Cursor and Claude Desktop. |
 | CLI | `folio-cli <command> --param value` on the running app, or `folio-cli --file report.folio <command>` on a file. `folio-cli batch` runs JSON lines from stdin. `folio-cli convert in.docx out.pdf`. `folio-cli --file report.folio agent "…" [--provider claude-code] [--model …] [--json]` runs the built-in agent on a file without the window. |
 | The bridge | The app listens on 127.0.0.1 only and writes `{port, token}` to `<data>/control.json` (0600). Clients send newline-delimited JSON-RPC: first `auth` with the token, then any command. `~/.lsuite/apps/folio.json` says where everything is. |
@@ -44,7 +44,7 @@ The sources are in `crates/folio-control/src/harness/` (`brief.md`, `skills/*.md
   clients (Claude Code) show the structured result instead of the text. A result with a picture
   has no `structuredContent`, so the picture is never hidden behind it.
 - **Pictures.** `harness.look` and `ui.screenshot` answers carry a picture: the built-in agent
-  attaches it to the tool result for models that can see (Anthropic and lsuite AI inside the
+  attaches it to the tool result for models that can see (Anthropic inside the
   result, OpenAI-compatible servers and Ollama in a message after it, Gemini inline; a server that
   refuses pictures gets the request again without them), and `folio-mcp` returns it as MCP image
   content after the text.

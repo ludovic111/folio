@@ -1,5 +1,5 @@
 //! Modal dialogs (tier-3 glass over the scrim, inside viewfinder brackets): export, open and
-//! import, settings, plugins, lsuite AI, the command palette, shortcuts, inserting tables,
+//! import, settings, plugins, the command palette, shortcuts, inserting tables,
 //! charts, links and comments, page setup, about.
 
 use folio_core::PageKind;
@@ -20,7 +20,7 @@ pub struct Dialogs {
     palette: Entity<TextInput>,
     author: Entity<TextInput>,
     describe: Entity<TextInput>,
-    /// What the open dialog loaded (plugin.list, account.plans, plugin.toolchain…).
+    /// What the open dialog loaded (plugin.list, plugin.toolchain…).
     data: Value,
     /// Choices inside the open dialog.
     export_format: String,
@@ -92,10 +92,6 @@ impl Dialogs {
         match d {
             Dialog::Palette => crate::ui::input::focus(&self.palette, window, cx),
             Dialog::Plugins => self.load("plugin.list", json!({}), cx),
-            Dialog::Account => {
-                self.store.update(cx, |s, cx| s.refresh_account(cx));
-                self.load("account.plans", json!({}), cx);
-            }
             Dialog::Settings { .. } => {
                 let author = self.store.read(cx).settings.editing.author.clone();
                 self.author.update(cx, |i, cx| i.set_text(author, cx));
@@ -519,68 +515,6 @@ impl Dialogs {
             .into_any_element()
     }
 
-    fn account(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let t = cx.theme().clone();
-        let acc = self.store.read(cx).account.clone();
-        let plans = self.data.get("account.plans").and_then(|p| p["plans"].as_array().cloned()).unwrap_or_default();
-        let signed = acc["signedIn"] == true;
-        let manage = acc["manageUrl"].as_str().unwrap_or("https://lsuite.xyz/account").to_string();
-        div()
-            .flex()
-            .flex_col()
-            .child(Self::header("lsuite AI", Some("one account for every lsuite app"), cx))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(16.))
-                    .p(px(18.))
-                    .child(
-                        div().flex().items_center().gap(px(12.)).child(logo("lsuite", px(40.))).child(
-                            div().flex().flex_col().gap(px(2.))
-                                .child(div().text_size(px(sz::LG)).font_weight(FontWeight::SEMIBOLD).child(if signed { acc["email"].as_str().unwrap_or("").to_string() } else { "No setup. Sign in and your agent works.".into() }))
-                                .child(div().font_family(MONO).text_size(px(sz::XS)).text_color(t.text_2).child(if signed { acc["summary"].as_str().or(acc["plan"].as_str()).unwrap_or("").to_uppercase() } else { "BRING YOUR OWN (CLAUDE CODE, CODEX, API KEYS, OLLAMA) STAYS FREE".into() })),
-                        ),
-                    )
-                    .when(acc["offline"] == true, |d| d.child(div().text_color(t.text_2).text_size(px(sz::SM)).child(format!("Couldn't reach the server: {}", acc["error"].as_str().unwrap_or("")))))
-                    .child(if signed {
-                        let m = manage.clone();
-                        div().flex().gap(px(8.))
-                            .child(Button::new("manage", "Manage plan").with_icon("external-link").small().on_click(move |_, _, _| folio_control::account::open_url(&m)))
-                            .child(Button::new("signout", "Sign out").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("account.signOut", json!({}), cx))))
-                            .into_any_element()
-                    } else {
-                        div().flex().flex_col().gap(px(8.))
-                            .child(div().child(Button::new("signin", "Sign in with the browser").with_icon("log-in").primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run_then("account.signIn", json!({}), cx, |s, _, cx| s.toast(folio_control::ToastKind::Info, "Finish signing in in your browser.", cx))))))
-                            .child(div().flex().items_center().gap(px(8.)).child(div().w(px(140.)).text_size(px(sz::SM)).text_color(t.text_2).child("Or paste a key (lsk_…)")).child(self.a.clone()).child(Button::new("use-key", "Use").small().on_click(cx.listener(|d, _, _, cx| {
-                                let key = d.a.read(cx).text().trim().to_string();
-                                if !key.is_empty() {
-                                    d.store.update(cx, |s, cx| s.run("account.signIn", json!({ "key": key }), cx));
-                                }
-                            }))))
-                            .into_any_element()
-                    })
-                    .when(!plans.is_empty(), |d| {
-                        d.child(caps("Plans (a demo: no payment is taken)", cx)).child(div().flex().gap(px(8.)).children(plans.iter().map(|p| {
-                            let current = acc["plan"].as_str() == p["id"].as_str();
-                            div()
-                                .flex_1()
-                                .flex()
-                                .flex_col()
-                                .gap(px(4.))
-                                .p(px(10.))
-                                .border_1()
-                                .border_color(if current { t.accent } else { t.line_strong })
-                                .when(current, |d| d.border_2())
-                                .child(div().font_weight(FontWeight::SEMIBOLD).child(p["name"].as_str().unwrap_or("").to_string()))
-                                .child(div().font_family(MONO).text_size(px(sz::XS)).child(price(p)))
-                                .child(div().text_size(px(sz::SM)).text_color(t.text_2).child(p["models"].as_array().map(|m| m.iter().filter_map(|x| x.as_str().or_else(|| x["name"].as_str())).collect::<Vec<_>>().join(", ")).unwrap_or_default()))
-                        })))
-                    }),
-            )
-            .into_any_element()
-    }
-
     fn palette(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.theme().clone();
         let q = self.palette.read(cx).text().to_string();
@@ -715,7 +649,7 @@ impl Dialogs {
                 div().p(px(18.)).flex().flex_col().gap(px(10.))
                     .child(div().flex().items_center().gap(px(12.)).child(icon("mark").size(px(36.))).child(div().flex().flex_col().child(div().text_size(px(sz::XL)).font_weight(FontWeight::BOLD).child("folio")).child(div().font_family(MONO).text_size(px(sz::XS)).text_color(t.text_2).child(format!("VERSION {} · BETA · MIT", env!("CARGO_PKG_VERSION"))))))
                     .child(div().text_color(t.text_2).child("Documents, sheets and slides in one file. Part of lsuite, the free creative suite where every app can be driven by an AI agent."))
-                    .child(div().flex().gap(px(8.)).child(Button::new("site", "lsuite.xyz/folio").small().on_click(|_, _, _| folio_control::account::open_url(crate::app::PAGE_URL))).child(Button::new("support", "Support folio").small().on_click(|_, _, _| folio_control::account::open_url(crate::app::SUPPORT_URL)))),
+                    .child(div().flex().gap(px(8.)).child(Button::new("site", "lsuite.xyz/folio").small().on_click(|_, _, _| folio_control::lsuite::open_url(crate::app::PAGE_URL))).child(Button::new("support", "Support folio").small().on_click(|_, _, _| folio_control::lsuite::open_url(crate::app::SUPPORT_URL)))),
             )
             .into_any_element()
     }
@@ -726,14 +660,6 @@ thread_local! {
     static DIALOG_LINK: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
     static DIALOG_SHEET: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
     static DIALOG_KIND: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
-}
-
-fn price(p: &Value) -> String {
-    match p["price"].as_f64().or_else(|| p["priceUsd"].as_f64()).or_else(|| p["monthly"].as_f64()) {
-        Some(v) if v > 0.0 => format!("${v:.0} / MONTH"),
-        Some(_) => "FREE".into(),
-        None => p["price"].as_str().unwrap_or("").to_uppercase(),
-    }
 }
 
 /// Where an executable shipped with folio is (next to this one), for setup lines.
@@ -832,7 +758,6 @@ impl Render for Dialogs {
             Some(Dialog::Open) => Some(("open", 760., self.open(cx))),
             Some(Dialog::Settings { .. }) => Some(("settings", 640., self.settings(cx))),
             Some(Dialog::Plugins) => Some(("plugins", 720., self.plugins(cx))),
-            Some(Dialog::Account) => Some(("account", 620., self.account(cx))),
             Some(Dialog::Palette) => Some(("palette", 560., self.palette(cx))),
             Some(Dialog::Shortcuts) => Some(("shortcuts", 900., self.shortcuts(cx))),
             Some(Dialog::Insert { what }) => Some(("insert", 520., self.insert(&what, cx))),
@@ -852,8 +777,7 @@ fn update_controls(cx: &App) -> AnyElement {
     let store = cx.store();
     let s = store.read(cx);
     let status = folio_control::update::status(&s.session);
-    let message = if let Some(sign_in) = &status.sign_in { sign_in.clone() }
-        else if let Some(error) = &status.error { error.clone() }
+    let message = if let Some(error) = &status.error { error.clone() }
         else if status.ready { "Update installed. Restart to use it.".into() }
         else if let Some(p) = status.progress { format!("Downloading and verifying: {:.0}%", p * 100.) }
         else if let Some(version) = &status.available { format!("folio {version} is available.") }
@@ -867,7 +791,7 @@ fn update_controls(cx: &App) -> AnyElement {
             .child(Button::new("check-updates-now", "Check now").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.checkUpdates", json!({}), cx))))
             .when(status.can_install && status.progress.is_none() && !status.ready, |d| d.child(Button::new("install-update", "Install update").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.installUpdate", json!({}), cx)))))
             .when(status.ready, |d| d.child(Button::new("restart-update", "Restart folio").small().primary().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("app.restart", json!({}), cx)))))
-            .when(status.sign_in.is_some() || (status.available.is_some() && !status.can_install && !status.ready), |d| d.child(Button::new("download-update", "Open the lsuite app").small().on_click(|_, _, cx| cx.open_url(folio_control::update::RELEASES_URL)))))
+            .when(status.available.is_some() && !status.can_install && !status.ready, |d| d.child(Button::new("download-update", "Open the lsuite app").small().on_click(|_, _, cx| cx.open_url(folio_control::update::RELEASES_URL)))))
         .children(status.install_blocked.map(|message| div().text_size(px(sz::SM)).child(message)))
         .into_any_element()
 }

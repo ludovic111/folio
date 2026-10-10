@@ -1,6 +1,6 @@
 [package]
 name = "folio-agent"
-description = "folio's built-in agent: runs the person's model (lsuite AI, Claude Code, Codex, API keys, local) over the command registry"
+description = "folio's built-in agent: runs the person's model (Claude Code, Codex, API keys, local) over the command registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

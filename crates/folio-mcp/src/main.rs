@@ -541,7 +541,7 @@ fn tools() -> Vec<Value> {
                     "readOnlyHint": !spec.mutates,
                     "destructiveHint": destructive,
                     "idempotentHint": !spec.mutates,
-                    "openWorldHint": matches!(spec.family(), "handoff" | "account") || matches!(spec.name, "app.checkUpdates" | "agent.send"),
+                    "openWorldHint": spec.family() == "handoff" || matches!(spec.name, "app.checkUpdates" | "agent.send"),
                 },
             })
         })

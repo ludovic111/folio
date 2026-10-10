@@ -38,12 +38,12 @@ pub const STOCK_NOTE: &str = "Stock plugins ship with folio. Switching one off i
 
 /// `~/.lsuite/plugins/folio`: installed bundles.
 pub fn plugins_dir() -> PathBuf {
-    crate::account::lsuite_home().join("plugins").join("folio")
+    crate::lsuite::lsuite_home().join("plugins").join("folio")
 }
 
 /// `~/.lsuite/plugins-src/folio`: plugin crates an agent writes.
 pub fn sources_dir() -> PathBuf {
-    crate::account::lsuite_home().join("plugins-src").join("folio")
+    crate::lsuite::lsuite_home().join("plugins-src").join("folio")
 }
 
 /// The library file name this platform loads, from `[library]`.

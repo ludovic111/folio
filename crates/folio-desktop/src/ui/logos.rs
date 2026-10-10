@@ -38,7 +38,6 @@ pub const LOGOS: &[(&str, Option<LogoFile>)] = &[
     ("libreoffice-calc", one("libreoffice-calc")),
     ("libreoffice-impress", one("libreoffice-impress")),
     // Agent providers.
-    ("lsuite", one("lsuite")),
     ("claude", one("claude")),
     ("claude-code", one("claude")),
     ("anthropic", one("claude")),

@@ -117,7 +117,6 @@ impl Render for Home {
                             .pr(px(if controls.is_some() { 0. } else { 16. }))
                             .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                             .child(Button::icon("home-plugins", "puzzle", "Plugins").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.open_dialog(Dialog::Plugins, cx))))
-                            .child(Button::icon("home-account", "user", "lsuite AI and account").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.open_dialog(Dialog::Account, cx))))
                             .child(Button::icon("home-settings", "settings", "Settings").small().on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.open_dialog(Dialog::Settings { section: None }, cx))))
                             .children(controls),
                     ),

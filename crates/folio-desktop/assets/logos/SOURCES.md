@@ -18,6 +18,5 @@ PNG) and otherwise left as it was. Downloaded on 2026-10-07. `ui::logos::LOGOS` 
 | `ollama.png`, `ollama-dark.png` | Ollama | Simple Icons 16.34.0, `icons/ollama.svg`, black and white |
 | `mistral.png` | Mistral AI | Simple Icons 16.34.0, `icons/mistralai.svg`, in its brand colour |
 | `openrouter.png` | OpenRouter | Simple Icons 16.34.0, `icons/openrouter.svg`, in its brand colour |
-| `lsuite.png` | lsuite AI | the lsuite site's mark, `assets/img/lsuite.svg` |
 | `kimchi.png` | kimchi (hand-offs) | kimchi's app icon, `crates/kimchi-desktop/resources/kimchi.png` in the kimchi repository |
 | `nori.png` | nori (hand-offs) | nori's app icon, `crates/nori-desktop/resources/nori.png` in the nori repository |
