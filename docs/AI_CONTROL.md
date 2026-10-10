@@ -2,14 +2,14 @@
 
 Everything a person can do in the folio window is a named command in one registry
 (`family.verb`, JSON parameters in, JSON result out). The window, the built-in agent (the Agent
-panel, Ctrl+J), `folio-cli` and `folio-mcp` all run the same commands, with the same checks and one
+panel, Ctrl+J or ⌘J), `folio-cli` and `folio-mcp` all run the same commands, with the same checks and one
 undo history. The full list, generated from the registry, is [COMMANDS.md](COMMANDS.md).
 
 ## Four ways in
 
 | Client | How |
 | --- | --- |
-| The Agent panel | Ctrl+J in the window. It runs what you bring: Claude Code, Codex, API keys (Anthropic, OpenAI, OpenRouter, Gemini, Mistral) or local models (Ollama, LM Studio, any OpenAI-compatible server). |
+| The Agent panel | Ctrl+J (⌘J on macOS) in the window. It runs what you bring: Claude Code, Codex, API keys (Anthropic, OpenAI, OpenRouter, Gemini, Mistral) or local models (Ollama, LM Studio, any OpenAI-compatible server). |
 | MCP | `claude mcp add folio -- folio-mcp --live` drives the running app; `folio-mcp --file report.folio` works on a file without it. `folio-cli mcp-config` prints the lines for Claude Code, Codex, Cursor and Claude Desktop. |
 | CLI | `folio-cli <command> --param value` on the running app, or `folio-cli --file report.folio <command>` on a file. `folio-cli batch` runs JSON lines from stdin. `folio-cli convert in.docx out.pdf`. `folio-cli --file report.folio agent "…" [--provider claude-code] [--model …] [--json]` runs the built-in agent on a file without the window. |
 | The bridge | The app listens on 127.0.0.1 only and writes `{port, token}` to `<data>/control.json` (0600). Clients send newline-delimited JSON-RPC: first `auth` with the token, then any command. `~/.lsuite/apps/folio.json` says where everything is. |

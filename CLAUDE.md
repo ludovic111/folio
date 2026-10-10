@@ -66,10 +66,17 @@ Rules that keep it working:
 folio is part of **lsuite** with ryolune (music), kimchi (video) and nori (images); its page
 is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `design/DESIGN.md`.
 
-- **Linux only while lsuite is in beta** (owner, 2026-10-08): macOS and Windows are "coming soon". Their
-  code and scripts stay in the source, but CI (`ci.yml`), `release.yml` and `publish-build.sh` build and
-  ship Linux only (latest.json lists only Linux platforms); kimchi's `suite-build.yml` is being made
-  Linux only too. README and the CHANGELOG say so.
+- **Linux and macOS** (owner, 2026-10-10; the beta was Linux only from 2026-10-08): Windows is "coming
+  soon" (its code and script stay; its matrix lines are commented out). macOS (Apple Silicon and Intel,
+  the Intel one cross-compiled) builds on the Mac mini, a self-hosted runner (labels `self-hosted, macOS,
+  ARM64, ludovics-mac-mini`; `runs-on: vars.MAC_RUNNER || 'ludovics-mac-mini'`, `MAC_RUNNER=macos-latest`
+  sends it back to GitHub): CI's macOS job only on `workflow_dispatch`, release.yml's two macOS rows.
+  The runner is the owner's own account: no global git config, nothing in `~/.ssh`, the login keychain
+  untouched (`prepare-apple-signing.sh` saves the keychain search list in `$RUNNER_TEMP`, the cleanup
+  step restores it and deletes the throwaway keychain); rust-cache and apt only on GitHub's machines.
+  Linux is verified with `~/fleet/rbuild -- env LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib
+  cargo …` while ludodesktop's runner is offline. latest.json lists linux-x86_64, darwin-aarch64 and
+  darwin-x86_64.
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
       through their CLIs (best effort: nori's export command is looked up from its `app.commands`).
@@ -85,8 +92,9 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
       and no Authorization header; downloads go through the server's file route (a 302 to storage);
       `FOLIO_UPDATE_URL` overrides the manifest. Tested against a fake server (`update.rs` tests).
 - [x] Releases: `release.yml` makes a draft; folio's suite builds come from kimchi's `suite-build.yml`
-      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's Linux artifact (its Linux
-      job must have succeeded; the others may be cancelled) or the draft's Linux files to
+      (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's Linux and macOS artifacts
+      (those three jobs must have succeeded; a Windows one may be cancelled) or the draft's Linux and
+      macOS files to
       `ludovic111/lsuite-builds` as `folio-v<version>` with latest.json (folio-release) and SHA256SUMS.
 - [x] **Agent harness** (HARNESS.md, 0.2.0), `folio-control/src/harness/`:
   1. Brief: `brief.md` + the skills' index = `harness.brief` = the built-in agent's system prompt
