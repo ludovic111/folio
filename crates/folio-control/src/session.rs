@@ -155,8 +155,6 @@ pub enum Event {
     Toast { kind: ToastKind, text: String },
     Command { record: CommandRecord },
     SettingsChanged,
-    /// Signed in or out of lsuite AI, or the plan changed.
-    AccountChanged,
     /// Plugins were installed, removed, switched or reloaded.
     PluginsChanged,
 }

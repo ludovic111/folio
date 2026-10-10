@@ -1,7 +1,6 @@
 //! Every command's spec and handler. Specs are listed here in one table so the docs, the CLI
 //! help and the MCP tools are generated in a stable order.
 
-pub mod account;
 pub mod agent;
 pub mod app;
 pub mod deck;
@@ -318,11 +317,6 @@ pub static SPECS: &[Spec] = &[
         opt("time", Number, "kimchi: the time in seconds (default: its playhead)."),
         PAGE, SLIDE, AFTER,
     ]).perm(Perm::AppControl),
-    // ---- account (lsuite AI) ----------------------------------------------
-    query("account.status", "lsuite AI: whether this computer is signed in (shared by every lsuite app), the account's email, plan, allowance used and when it resets, and the models in the plan.", &[opt("refresh", Boolean, "Ask the server again now.")]),
-    edit("account.signIn", "Sign in to lsuite AI: opens the browser to connect folio (the account is shared by every lsuite app), or takes a key from the account page (lsk_…).", &[opt("key", String, "A key from lsuite.xyz/account, for headless sign-in."), opt("wait", Boolean, "Wait for the browser sign-in to finish (default false).")]).perm(Perm::PersonOnly),
-    edit("account.signOut", "Sign out of lsuite AI on this computer (every lsuite app).", &[]).perm(Perm::PersonOnly),
-    query("account.plans", "lsuite AI plans with prices, models and monthly allowances (from the server).", &[]),
     // ---- plugins ----------------------------------------------------------
     query("plugin.list", "Plugins: stock (shipped with folio), installed (lsuite plugins built in Rust), with id, name, kind (functions or filter), version, path and whether enabled.", &[]),
     query("plugin.info", "One plugin: what it adds (functions with their syntax, file formats), where it came from, its manifest.", &[req("id", String, "Plugin id.")]),
@@ -338,7 +332,7 @@ pub static SPECS: &[Spec] = &[
     edit("plugin.build", "Build a plugin crate (cargo build --release); returns ok and the compiler's errors as {file, line, message}.", &[req("name", String, "Crate name.")]).perm(Perm::Plugins),
     edit("plugin.publishLocal", "Bundle a built plugin crate and install it: its functions work at once.", &[req("name", String, "Crate name.")]).perm(Perm::Plugins),
     // ---- agent ------------------------------------------------------------
-    query("agent.providers", "What can run the built-in agent: lsuite AI (no setup), coding CLIs on this computer (Claude Code, Codex), model APIs (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral) and local servers (Ollama, LM Studio); whether each is ready and what to do next.", &[opt("refresh", Boolean, "Check again now.")]).window(),
+    query("agent.providers", "What can run the built-in agent: coding CLIs on this computer (Claude Code, Codex), model APIs (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral) and local servers (Ollama, LM Studio); whether each is ready and what to do next.", &[opt("refresh", Boolean, "Check again now.")]).window(),
     query("agent.models", "The models a provider offers for the agent (the chosen one by default).", &[opt("provider", String, "A provider id from agent.providers."), opt("refresh", Boolean, "Fetch the list again now.")]).window(),
     edit("agent.setProvider", "Choose what runs the built-in agent (Settings › Agent).", &[req("provider", String, "A provider id from agent.providers."), opt("model", String, "Model id; empty for the provider's default."), opt("baseUrl", String, "A local or compatible server's address; empty for the default.")]).perm(Perm::PersonOnly),
     edit("agent.send", "Ask the built-in agent (the Agent panel) to do something, in words. It runs commands like any client (permissions apply) and shows them as cards. Returns the run at once, or once it ends with wait.", &[req("prompt", String, "The request."), opt("wait", Boolean, "Wait until the run ends (default false)."), opt("timeout", Number, "With wait: stop waiting after this many seconds (default 900).")]).window(),
@@ -355,9 +349,9 @@ pub static SPECS: &[Spec] = &[
     query("app.settings", "Every setting with its value.", &[]),
     edit("app.setSetting", "Change one setting by dotted key, e.g. appearance.mode or editing.author. Agent permissions stay with the person.", &[req("key", String, "Dotted key from app.settings."), req("value", Any, "New value (same type).")]).perm(Perm::Settings),
     edit("app.setAgentKey", "Save (or with no key, remove) an API key the built-in agent uses, in the OS keychain.", &[req("provider", String, "anthropic, openai, openrouter, gemini or mistral."), opt("key", String, "The key; empty removes it.")]).perm(Perm::PersonOnly),
-    query("app.onboarding", "The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), the agent providers found on this computer and lsuite AI.", &[]),
+    query("app.onboarding", "The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), and the agent providers found on this computer.", &[]),
     edit("app.finishOnboarding", "Finish (or skip) the first-run setup with the choices made.", &[opt("comingFrom", String, "office, google, apple, libreoffice or none."), opt("agent", Boolean, "Offer the Agent panel."), opt("provider", String, "The agent provider to use."), opt("author", String, "The name on comments and tracked changes.")]),
-    query("app.checkUpdates", "Ask lsuite (with the lsuite account signed in on this computer) whether a newer folio is out, and say how to get it. Signed out, it says to sign in in the lsuite app.", &[]),
+    query("app.checkUpdates", "Ask lsuite whether a newer folio is out, and say how to get it.", &[]),
     query("app.updateStatus", "Read update availability, download progress and restart state.", &[]),
     edit("app.installUpdate", "Download, verify and install the available signed update.", &[]).perm(Perm::AppControl),
     edit("app.restart", "Restart folio to use an installed update.", &[]).perm(Perm::AppControl).window(),
@@ -366,7 +360,7 @@ pub static SPECS: &[Spec] = &[
     query("ui.state", "What the window shows: home or editor, the page, the caret or selected cells or slide, zoom, theme, open panels.", &[]),
     edit("ui.show", "Show a page in the window (and a slide, a cell or a block).", &[PAGE, SLIDE, opt("cell", String, "A cell to select."), opt("block", Integer, "A block to scroll to.")]).window(),
     edit("ui.select", "Select in the window: text from..to on a document page, a range of cells, or shapes on a slide.", &[opt("from", Object, "Text start {block, offset}."), opt("to", Object, "Text end."), opt("range", String, "Cells, A1."), opt("shapes", Array, "Shape ids.").of(String)]).window(),
-    edit("ui.panel", "Open or close a panel or dialog: agent, inspector, pages, settings, export, open, plugins, account, palette, shortcuts, onboarding; or home.", &[req("name", String, "Panel or dialog name."), opt("open", Boolean, "Default true.")]).window(),
+    edit("ui.panel", "Open or close a panel or dialog: agent, inspector, pages, settings, export, open, plugins, palette, shortcuts, onboarding; or home.", &[req("name", String, "Panel or dialog name."), opt("open", Boolean, "Default true.")]).window(),
     edit("ui.zoom", "Zoom the work area.", &[req("level", Number, "1 = 100 % (0.25 to 4)."), ]).window(),
     edit("ui.theme", "Dark, light or follow the system.", &[req("mode", String, "dark, light or system.")]).perm(Perm::Settings),
     edit("ui.screenshot", "Save a PNG of the window and return its path (macOS).", &[opt("path", String, "Destination .png (default: a temporary file).")]).perm(Perm::Files).window(),
@@ -386,7 +380,6 @@ pub async fn dispatch(s: &Arc<Session>, cx: &Ctx, a: Args) -> CmdResult {
         "history" => Box::pin(history::run(s, cx, a)).await,
         "handoff" => Box::pin(handoff::run(s, cx, a)).await,
         "harness" => Box::pin(harness::run(s, cx, a)).await,
-        "account" => Box::pin(account::run(s, cx, a)).await,
         "plugin" => Box::pin(plugin::run(s, cx, a)).await,
         "agent" => Box::pin(agent::run(s, cx, a)).await,
         "app" => Box::pin(app::run(s, cx, a)).await,

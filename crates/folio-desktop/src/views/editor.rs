@@ -205,7 +205,6 @@ impl Editor {
                                     MenuItem::new("Open or import…", |w, cx| w.dispatch_action(Box::new(OpenFile), cx)).icon("folder-open").shortcut(crate::actions::hint(&OpenFile).unwrap_or_default()).entry(),
                                     MenuItem::new(if untitled { "Save in a folder…" } else { "Save as…" }, |w, cx| w.dispatch_action(Box::new(SaveAs), cx)).icon("download").entry(),
                                     MenuEntry::Separator,
-                                    MenuItem::new("lsuite AI and account", |w, cx| w.dispatch_action(Box::new(OpenAccount), cx)).icon("user").entry(),
                                     MenuItem::new("Keyboard shortcuts", |w, cx| w.dispatch_action(Box::new(ShowShortcuts), cx)).icon("keyboard").shortcut(crate::actions::hint(&ShowShortcuts).unwrap_or_default()).entry(),
                                     MenuItem::new("Command palette", |w, cx| w.dispatch_action(Box::new(Palette), cx)).icon("command").shortcut(crate::actions::hint(&Palette).unwrap_or_default()).entry(),
                                     MenuItem::new("Dark or light", |w, cx| w.dispatch_action(Box::new(ToggleTheme), cx)).icon("sun").entry(),

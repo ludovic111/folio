@@ -178,7 +178,6 @@ impl Workspace {
                                 "export" => Some(Dialog::Export),
                                 "open" => Some(Dialog::Open),
                                 "plugins" => Some(Dialog::Plugins),
-                                "account" => Some(Dialog::Account),
                                 "palette" => Some(Dialog::Palette),
                                 "shortcuts" => Some(Dialog::Shortcuts),
                                 "pageSetup" => Some(Dialog::PageSetup),
@@ -315,10 +314,6 @@ impl Workspace {
 
     fn plugins(&mut self, _: &OpenPlugins, _: &mut Window, cx: &mut Context<Self>) {
         self.store.update(cx, |s, cx| s.open_dialog(Dialog::Plugins, cx));
-    }
-
-    fn account(&mut self, _: &OpenAccount, _: &mut Window, cx: &mut Context<Self>) {
-        self.store.update(cx, |s, cx| s.open_dialog(Dialog::Account, cx));
     }
 
     fn about(&mut self, _: &About, _: &mut Window, cx: &mut Context<Self>) {
@@ -471,7 +466,6 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::shortcuts))
             .on_action(cx.listener(Self::settings))
             .on_action(cx.listener(Self::plugins))
-            .on_action(cx.listener(Self::account))
             .on_action(cx.listener(Self::about))
             .on_action(cx.listener(Self::toggle_agent))
             .on_action(cx.listener(Self::toggle_inspector))

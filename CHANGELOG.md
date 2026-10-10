@@ -2,6 +2,17 @@
 
 What changed in each folio release.
 
+## Unreleased
+
+lsuite is now entirely free: no account, no subscription.
+
+### Removed
+- **lsuite AI and the lsuite account.** The agent runs on what you bring: Claude Code, Codex, an Anthropic, OpenAI, OpenRouter, Gemini or Mistral key, or a local model (Ollama, LM Studio, any OpenAI-compatible server). The `account.*` commands, the lsuite AI dialog, the sign-in in the Agent panel and in the first-run setup are gone. Settings that chose lsuite AI switch to Claude Code; an old `~/.lsuite/account.json` is left alone and ignored.
+
+### Changed
+- **Updates without an account.** The update check reads `https://lsuite.xyz/api/apps/folio/latest.json` (or `$LSUITE_SERVER`), which is public, and downloads through lsuite without a token; signatures are checked exactly as before. Nobody is asked to sign in any more.
+- The first-run setup offers Claude Code (the default), Codex, an API key, Ollama or no agent.
+
 ## 0.2.0 — 2026-10-07 (beta)
 
 folio's agent harness: an agent working in folio knows office work, sees what it made and checks it before it says it is done, whether it is the Agent panel, `folio-cli agent` or an outside agent over `folio-mcp`.

@@ -86,7 +86,7 @@ pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Messag
     let url = format!("{}/models/{model}:streamGenerateContent?alt=sse", api.base);
     let label = api.label();
     let key = api.key.clone().unwrap_or_default();
-    let response = http::post(&run.cancel, &label, || api.http.post(&url).header("x-goog-api-key", &key), &body, http::Errors::Api).await?;
+    let response = http::post(&run.cancel, &label, || api.http.post(&url).header("x-goog-api-key", &key), &body).await?;
 
     let mut lines = Lines::new(response);
     // Every part of the reply as streamed: text parts with the same signature state are joined.

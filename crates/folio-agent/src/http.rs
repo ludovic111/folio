@@ -21,20 +21,10 @@ pub fn client() -> reqwest::Client {
         .unwrap_or_default()
 }
 
-/// How a service's errors become the one line the person reads.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Errors {
-    /// A model API: `<label> error <status>: <message>`, with a hint about the key or model.
-    Api,
-    /// lsuite AI: the server's own line (`account::error_line`), with Manage plan for the plan
-    /// and allowance errors. Never retried on 4xx.
-    Lsuite,
-}
-
 /// POSTs `body` and returns the response once it is 2xx. Rate limits, overload
 /// and connection failures are retried twice with a pause; other errors come
-/// back with the service's own message.
-pub async fn post(cancel: &CancellationToken, label: &str, build: impl Fn() -> reqwest::RequestBuilder, body: &Value, errors: Errors) -> Result<reqwest::Response, String> {
+/// back as one line, `<label> error <status>: <message>`, with a hint about the key or model.
+pub async fn post(cancel: &CancellationToken, label: &str, build: impl Fn() -> reqwest::RequestBuilder, body: &Value) -> Result<reqwest::Response, String> {
     let mut attempt = 0;
     loop {
         attempt += 1;
@@ -43,15 +33,9 @@ pub async fn post(cancel: &CancellationToken, label: &str, build: impl Fn() -> r
             Ok(r) => {
                 let status = r.status().as_u16();
                 let text = r.text().await.unwrap_or_default();
-                let message = match errors {
-                    Errors::Api => format!("{label} error {status}: {}", api_error(&text)),
-                    Errors::Lsuite => crate::lsuite::error_line(status, &text),
-                };
+                let message = format!("{label} error {status}: {}", api_error(&text));
                 if !matches!(status, 408 | 409 | 429 | 500 | 502 | 503 | 504 | 529) || attempt > 2 {
-                    return Err(match errors {
-                        Errors::Api => hint(status, message),
-                        Errors::Lsuite => message,
-                    });
+                    return Err(hint(status, message));
                 }
                 message
             }

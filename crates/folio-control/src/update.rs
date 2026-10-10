@@ -1,12 +1,10 @@
-//! Automatic updates, through the lsuite account (lsuite's DISTRIBUTION.md).
+//! Automatic updates, through lsuite (lsuite's DISTRIBUTION.md).
 //!
-//! folio's builds are obtained through lsuite: the update check reads
-//! `<server>/api/apps/folio/latest.json` with the lsuite account's token
-//! (`Authorization: Bearer <token>`, from `~/.lsuite/account.json`; `LSUITE_HOME` replaces
-//! `~/.lsuite`). `<server>` is `LSUITE_ACCOUNT_SERVER`, else the account's server, else
-//! `https://lsuite.xyz`. The server answers the release's signed `latest.json` with every `url`
-//! pointing at its file route, which takes the same token and redirects to a short-lived
-//! download address. Signed out, the check says [`SIGN_IN`] instead of failing.
+//! folio's builds come through lsuite: the update check reads
+//! `<server>/api/apps/folio/latest.json`, a public route (no account, no token). `<server>` is
+//! `LSUITE_SERVER`, else `https://lsuite.xyz` ([`crate::lsuite::server`]). The server answers the
+//! release's signed `latest.json` with every `url` pointing at its file route, which redirects to a
+//! short-lived download address.
 //!
 //! ```json
 //! { "version": "0.2.0", "notes": "…", "pub_date": "…",
@@ -32,7 +30,7 @@
 //! `FOLIO_NO_UPDATE=1` or `settings.updates.checkOnStart = false` turn off the checks at start and
 //! every [`RECHECK`] ([`run_in_background`], which also installs by itself with
 //! `updates.autoInstall`); `app.checkUpdates` and `app.installUpdate` always work. `FOLIO_UPDATE_URL`
-//! points the check at another `latest.json`, without the account (signatures are still checked
+//! points the check at another `latest.json` (signatures are still checked
 //! against [`PUBLIC_KEY`]; debug builds accept `FOLIO_UPDATE_PUBKEY` instead, for testing with a
 //! throwaway key).
 
@@ -52,9 +50,6 @@ use crate::session::{CmdResult, Event, Session, ToastKind};
 
 /// Where people get folio: the lsuite app, which installs and updates it.
 pub const RELEASES_URL: &str = "https://lsuite.xyz/launcher";
-/// What a signed-out check says.
-pub const SIGN_IN: &str = "Sign in to lsuite (in the lsuite app) to get updates.";
-
 /// The manifest route of an lsuite server.
 pub fn manifest_url(server: &str) -> String {
     format!("{}/api/apps/folio/latest.json", server.trim().trim_end_matches('/'))
@@ -96,9 +91,6 @@ pub struct UpdateStatus {
     /// from the source tree, an app still in Downloads…).
     #[serde(default)]
     pub install_blocked: Option<String>,
-    /// Set when the check needs an lsuite account: what to tell the person ([`SIGN_IN`]).
-    #[serde(default)]
-    pub sign_in: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -115,54 +107,15 @@ struct Found {
     version: String,
     url: String,
     signature: String,
-    /// The account's token, sent with the download when it comes from the lsuite server.
-    token: Option<String>,
 }
 
-/// Where a check asks, and with what.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Endpoint {
-    /// The `latest.json` to read.
-    pub url: String,
-    /// The lsuite server, whose routes take the token.
-    pub server: Option<String>,
-    /// The account's token; `None` when signed out.
-    pub token: Option<String>,
+/// The `latest.json` a check reads: `FOLIO_UPDATE_URL` when set, else the lsuite server's.
+pub fn endpoint() -> String {
+    endpoint_for(std::env::var("FOLIO_UPDATE_URL").ok(), &crate::lsuite::server())
 }
 
-impl Endpoint {
-    /// `FOLIO_UPDATE_URL` when set, else the lsuite server with the account.
-    pub fn current() -> Self {
-        let over = std::env::var("FOLIO_UPDATE_URL").ok().filter(|u| !u.trim().is_empty());
-        Self::resolve(over, crate::account::server(), crate::account::read().map(|a| a.token))
-    }
-
-    pub fn resolve(override_url: Option<String>, server: String, token: Option<String>) -> Self {
-        match override_url {
-            Some(url) => Endpoint { url, server: None, token: None },
-            None => Endpoint { url: manifest_url(&server), server: Some(server.trim().trim_end_matches('/').to_string()), token },
-        }
-    }
-
-    /// Signed out of lsuite: nothing to ask.
-    pub fn needs_sign_in(&self) -> bool {
-        self.server.is_some() && self.token.is_none()
-    }
-
-    /// The token, for a URL on the lsuite server only (never sent anywhere else).
-    pub fn token_for(&self, url: &str) -> Option<String> {
-        let server = self.server.as_deref()?;
-        let same = |a: &str, b: &str| url::Url::parse(a).ok().zip(url::Url::parse(b).ok()).is_some_and(|(a, b)| a.origin() == b.origin());
-        same(server, url).then(|| self.token.clone()).flatten()
-    }
-}
-
-/// Why a check couldn't read the manifest.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Fetch {
-    /// Signed out, or the token was refused: the person signs in.
-    SignIn,
-    Failed(String),
+pub fn endpoint_for(override_url: Option<String>, server: &str) -> String {
+    override_url.filter(|u| !u.trim().is_empty()).unwrap_or_else(|| manifest_url(server))
 }
 
 /// `latest.json`, in the Tauri updater's format.
@@ -204,18 +157,18 @@ pub enum Install {
 
 /// Checks for a newer release. `manual` reports errors instead of staying quiet.
 pub async fn check(s: &Arc<Session>, manual: bool) -> CmdResult<UpdateStatus> {
-    check_at(s, manual, &Endpoint::current()).await
+    check_at(s, manual, &endpoint()).await
 }
 
-/// [`check`] against `endpoint`.
-pub async fn check_at(s: &Arc<Session>, manual: bool, endpoint: &Endpoint) -> CmdResult<UpdateStatus> {
+/// [`check`] against the `latest.json` at `url`.
+pub async fn check_at(s: &Arc<Session>, manual: bool, url: &str) -> CmdResult<UpdateStatus> {
     {
         let u = s.update.lock();
         if u.busy || u.status.ready {
             return Ok(u.status.clone());
         }
     }
-    let fetched = if endpoint.needs_sign_in() { Err(Fetch::SignIn) } else { fetch_manifest(&endpoint.url, endpoint.token.as_deref()).await };
+    let fetched = fetch_manifest(url).await;
     let install = current_install();
     let status = {
         let mut u = s.update.lock();
@@ -228,7 +181,7 @@ pub async fn check_at(s: &Arc<Session>, manual: bool, endpoint: &Endpoint) -> Cm
                 let newer = is_newer(&m.version, CURRENT);
                 let asset = select(m, &platform_keys_for(&install)).filter(|_| newer);
                 let blocked = install_support(&install).err();
-                u.found = asset.map(|a| Found { version: m.version.clone(), url: a.url.clone(), signature: a.signature.clone(), token: endpoint.token_for(&a.url) });
+                u.found = asset.map(|a| Found { version: m.version.clone(), url: a.url.clone(), signature: a.signature.clone() });
                 u.status = UpdateStatus {
                     current: CURRENT.into(),
                     available: newer.then(|| m.version.clone()),
@@ -240,18 +193,12 @@ pub async fn check_at(s: &Arc<Session>, manual: bool, endpoint: &Endpoint) -> Cm
                     checked_at: now,
                     download_url: newer.then(|| RELEASES_URL.to_string()),
                     install_blocked: if newer { blocked } else { None },
-                    sign_in: None,
                 };
             }
-            Err(Fetch::SignIn) => {
-                u.found = None;
-                u.status = UpdateStatus { current: CURRENT.into(), checked_at: now, sign_in: Some(SIGN_IN.into()), ..Default::default() };
-            }
-            Err(Fetch::Failed(e)) => {
+            Err(e) => {
                 tracing::debug!("update check failed: {e}");
                 u.status.current = CURRENT.into();
                 u.status.checked_at = now;
-                u.status.sign_in = None;
                 u.status.error = manual.then(|| e.clone());
             }
         }
@@ -259,7 +206,7 @@ pub async fn check_at(s: &Arc<Session>, manual: bool, endpoint: &Endpoint) -> Cm
     };
     s.emit(Event::Update { status: status.clone() });
     match fetched {
-        Err(Fetch::Failed(e)) if manual => Err(e),
+        Err(e) if manual => Err(e),
         _ => Ok(status),
     }
 }
@@ -321,21 +268,16 @@ fn client(timeout: Option<Duration>) -> Result<reqwest::Client, String> {
     b.build().map_err(|e| e.to_string())
 }
 
-async fn fetch_manifest(url: &str, token: Option<&str>) -> Result<Manifest, Fetch> {
-    let offline = |e: reqwest::Error| Fetch::Failed(format!("Couldn't reach lsuite to check for updates ({e})."));
-    let mut req = client(Some(Duration::from_secs(30))).map_err(Fetch::Failed)?.get(url);
-    if let Some(t) = token {
-        req = req.bearer_auth(t);
-    }
-    let res = req.send().await.map_err(offline)?;
+async fn fetch_manifest(url: &str) -> Result<Manifest, String> {
+    let offline = |e: reqwest::Error| format!("Couldn't reach lsuite to check for updates ({e}).");
+    let res = client(Some(Duration::from_secs(30)))?.get(url).send().await.map_err(offline)?;
     match res.status() {
-        reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => return Err(Fetch::SignIn),
-        reqwest::StatusCode::NOT_FOUND => return Err(Fetch::Failed("No folio release with an update manifest has been published yet.".into())),
-        st if !st.is_success() => return Err(Fetch::Failed(format!("The update server answered {st}."))),
+        reqwest::StatusCode::NOT_FOUND => return Err("No folio release with an update manifest has been published yet.".into()),
+        st if !st.is_success() => return Err(format!("The update server answered {st}.")),
         _ => {}
     }
     let bytes = res.bytes().await.map_err(offline)?;
-    serde_json::from_slice(&bytes).map_err(|e| Fetch::Failed(format!("The update manifest isn't valid: {e}")))
+    serde_json::from_slice(&bytes).map_err(|e| format!("The update manifest isn't valid: {e}"))
 }
 
 /// Whether `candidate` is a newer version than `current` (semver; a leading `v` is allowed).
@@ -460,7 +402,6 @@ pub async fn install(s: &Arc<Session>) -> CmdResult<UpdateStatus> {
         let Some(found) = u.found.clone() else {
             return Err(match &u.status.available {
                 Some(v) => format!("folio {v} has no download for this platform yet. See {RELEASES_URL}"),
-                None if u.status.sign_in.is_some() => SIGN_IN.to_string(),
                 None => format!("folio {CURRENT} is up to date."),
             });
         };
@@ -555,15 +496,7 @@ async fn download_verified_with(s: &Arc<Session>, found: &Found, file: &Path, pu
     let mut verifier = pk.verify_stream(&sig).map_err(signature_error)?;
 
     let failed = |e: reqwest::Error| format!("The download failed ({e}).");
-    let mut req = client(None)?.get(&found.url).header(reqwest::header::ACCEPT, "application/octet-stream");
-    // The lsuite file route takes the token and redirects elsewhere: the redirect drops it.
-    if let Some(t) = &found.token {
-        req = req.bearer_auth(t);
-    }
-    let res = req.send().await.map_err(failed)?;
-    if matches!(res.status(), reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN) {
-        return Err(SIGN_IN.into());
-    }
+    let res = client(None)?.get(&found.url).header(reqwest::header::ACCEPT, "application/octet-stream").send().await.map_err(failed)?;
     if !res.status().is_success() {
         return Err(format!("The download failed: the server answered {}.", res.status()));
     }
@@ -1072,15 +1005,15 @@ mod tests {
 
     // ---- the lsuite server ---------------------------------------------------------------
 
-    use wiremock::matchers::{header, method, path};
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn session(dir: &Path) -> Arc<Session> {
         Session::new(crate::SessionOptions { data_dir: Some(dir.join("data")), config_dir: Some(dir.join("config")), secrets: None, headless: true }).unwrap()
     }
 
-    /// A fake lsuite: the manifest route answers only with the right token; anything else is 401.
-    async fn fake_lsuite(token: &str, version: &str) -> MockServer {
+    /// A fake lsuite: the public manifest route; anything else is 404.
+    async fn fake_lsuite(version: &str) -> MockServer {
         let server = MockServer::start().await;
         let file = format!("{}/api/apps/folio/files/folio-v{version}/folio.AppImage", server.uri());
         let platforms: serde_json::Map<String, serde_json::Value> = ["darwin-aarch64-app", "darwin-x86_64-app", "linux-x86_64", "windows-x86_64-nsis", "windows-x86_64"]
@@ -1090,72 +1023,37 @@ mod tests {
         let manifest = serde_json::json!({ "version": version, "notes": "New things", "platforms": platforms });
         Mock::given(method("GET"))
             .and(path("/api/apps/folio/latest.json"))
-            .and(header("authorization", format!("Bearer {token}").as_str()))
             .respond_with(ResponseTemplate::new(200).set_body_json(manifest))
-            .with_priority(1)
-            .mount(&server)
-            .await;
-        Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({ "error": { "type": "authentication_error", "message": "Sign in to lsuite to get the apps: the account is free." } })))
-            .with_priority(5)
             .mount(&server)
             .await;
         server
     }
 
     #[test]
-    fn the_endpoint_follows_the_account_and_the_override() {
-        let e = Endpoint::resolve(None, "https://lsuite.xyz/".into(), Some("lst_1".into()));
-        assert_eq!(e.url, "https://lsuite.xyz/api/apps/folio/latest.json");
-        assert!(!e.needs_sign_in());
-        assert_eq!(e.token_for("https://lsuite.xyz/api/apps/folio/files/folio-v0.2.0/x.tar.gz").as_deref(), Some("lst_1"));
-        // The token never goes anywhere but the lsuite server.
-        assert_eq!(e.token_for("https://objects.githubusercontent.com/x.tar.gz"), None);
-        assert_eq!(e.token_for("http://lsuite.xyz/x"), None);
-        assert!(Endpoint::resolve(None, "https://lsuite.xyz".into(), None).needs_sign_in());
-        // FOLIO_UPDATE_URL: as given, without the account.
-        let o = Endpoint::resolve(Some("http://127.0.0.1:9/latest.json".into()), "https://lsuite.xyz".into(), Some("lst_1".into()));
-        assert_eq!((o.url.as_str(), o.token.as_deref(), o.needs_sign_in()), ("http://127.0.0.1:9/latest.json", None, false));
+    fn the_endpoint_is_the_lsuite_server_unless_overridden() {
+        assert_eq!(endpoint_for(None, "https://lsuite.xyz/"), "https://lsuite.xyz/api/apps/folio/latest.json");
+        assert_eq!(endpoint_for(Some(" ".into()), "http://127.0.0.1:8080"), "http://127.0.0.1:8080/api/apps/folio/latest.json");
+        // FOLIO_UPDATE_URL: as given.
+        assert_eq!(endpoint_for(Some("http://127.0.0.1:9/latest.json".into()), "https://lsuite.xyz"), "http://127.0.0.1:9/latest.json");
     }
 
     #[tokio::test]
-    async fn checks_lsuite_with_the_account_token() {
+    async fn checks_lsuite_without_an_account() {
         let dir = tempfile::tempdir().unwrap();
-        let server = fake_lsuite("lst_good", "99.0.0").await;
+        let server = fake_lsuite("99.0.0").await;
         let s = session(dir.path());
-        let st = check_at(&s, true, &Endpoint::resolve(None, server.uri(), Some("lst_good".into()))).await.unwrap();
+        let st = check_at(&s, true, &endpoint_for(None, &server.uri())).await.unwrap();
         assert_eq!(st.available.as_deref(), Some("99.0.0"));
         assert_eq!(st.notes.as_deref(), Some("New things"));
-        assert_eq!((st.sign_in.as_deref(), st.error.as_deref()), (None, None));
+        assert_eq!(st.error, None);
         assert_eq!(st.download_url.as_deref(), Some(RELEASES_URL));
-        let found = s.update.lock().found.clone();
-        if let Some(found) = found {
-            assert_eq!(found.token.as_deref(), Some("lst_good"), "the download goes to the same server: it takes the token");
-        }
         let got = server.received_requests().await.unwrap();
         assert_eq!(got.len(), 1);
-        assert_eq!(got[0].headers.get("authorization").unwrap(), "Bearer lst_good");
+        assert!(got[0].headers.get("authorization").is_none(), "the manifest route is public: no token is sent");
     }
 
     #[tokio::test]
-    async fn signed_out_or_refused_asks_to_sign_in() {
-        let dir = tempfile::tempdir().unwrap();
-        let server = fake_lsuite("lst_good", "99.0.0").await;
-        // Signed out: nothing is asked, and the check says so instead of failing.
-        let s = session(&dir.path().join("a"));
-        let st = check_at(&s, true, &Endpoint::resolve(None, server.uri(), None)).await.unwrap();
-        assert_eq!(st.sign_in.as_deref(), Some(SIGN_IN));
-        assert_eq!((st.available.as_deref(), st.error.as_deref()), (None, None));
-        assert!(server.received_requests().await.unwrap().is_empty());
-        // A token the server refuses (signed out elsewhere, expired): the same.
-        let s = session(&dir.path().join("b"));
-        let st = check_at(&s, true, &Endpoint::resolve(None, server.uri(), Some("lst_old".into()))).await.unwrap();
-        assert_eq!(st.sign_in.as_deref(), Some(SIGN_IN));
-        assert!(st.error.is_none());
-    }
-
-    #[tokio::test]
-    async fn the_override_url_works_without_an_account() {
+    async fn the_override_url_and_server_errors() {
         let dir = tempfile::tempdir().unwrap();
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -1164,43 +1062,37 @@ mod tests {
             .mount(&server)
             .await;
         let s = session(dir.path());
-        let st = check_at(&s, true, &Endpoint::resolve(Some(format!("{}/latest.json", server.uri())), "https://lsuite.xyz".into(), Some("lst_1".into()))).await.unwrap();
-        assert_eq!((st.available.as_deref(), st.sign_in.as_deref()), (None, None));
-        let got = server.received_requests().await.unwrap();
-        assert!(got[0].headers.get("authorization").is_none(), "no token for another server");
+        let st = check_at(&s, true, &format!("{}/latest.json", server.uri())).await.unwrap();
+        assert_eq!((st.available.as_deref(), st.error.as_deref()), (None, None));
         // A server error is an error when asked by hand.
         let s = session(&dir.path().join("c"));
-        let err = check_at(&s, true, &Endpoint::resolve(Some(format!("{}/missing.json", server.uri())), "https://lsuite.xyz".into(), None)).await.unwrap_err();
+        let err = check_at(&s, true, &format!("{}/missing.json", server.uri())).await.unwrap_err();
         assert!(err.contains("No folio release"), "{err}");
     }
 
     #[tokio::test]
-    async fn downloads_through_the_file_route_without_leaking_the_token() {
+    async fn downloads_through_the_file_route() {
         let dir = tempfile::tempdir().unwrap();
         let k = keys();
         let data = b"the new folio".repeat(5_000);
         let sig = sign(&k, &data, "timestamp:1790886104\tfile:folio.AppImage\tversion:99.0.0");
-        // The storage the file route redirects to: answers anyone (its address is signed).
+        // The storage the file route redirects to (its address is signed).
         let storage = MockServer::start().await;
         Mock::given(method("GET")).and(path("/blob")).respond_with(ResponseTemplate::new(200).set_body_bytes(data.clone())).mount(&storage).await;
         let lsuite = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/apps/folio/files/folio-v99.0.0/folio.AppImage"))
-            .and(header("authorization", "Bearer lst_good"))
             .respond_with(ResponseTemplate::new(302).insert_header("location", format!("{}/blob", storage.uri()).as_str()))
-            .with_priority(1)
             .mount(&lsuite)
             .await;
-        Mock::given(method("GET")).respond_with(ResponseTemplate::new(401)).with_priority(5).mount(&lsuite).await;
         let s = session(dir.path());
-        let found = Found { version: "99.0.0".into(), url: format!("{}/api/apps/folio/files/folio-v99.0.0/folio.AppImage", lsuite.uri()), signature: sig, token: Some("lst_good".into()) };
+        let found = Found { version: "99.0.0".into(), url: format!("{}/api/apps/folio/files/folio-v99.0.0/folio.AppImage", lsuite.uri()), signature: sig };
         let file = dir.path().join("folio.AppImage");
         download_verified_with(&s, &found, &file, &k.pk_b64).await.unwrap();
         assert_eq!(std::fs::read(&file).unwrap(), data);
-        let at_storage = storage.received_requests().await.unwrap();
-        assert!(at_storage[0].headers.get("authorization").is_none(), "the redirect drops the token");
-        // Without the token the file route refuses: the person is asked to sign in.
-        let anon = Found { token: None, ..found };
-        assert_eq!(download_verified_with(&s, &anon, &dir.path().join("again"), &k.pk_b64).await.unwrap_err(), SIGN_IN);
+        assert!(lsuite.received_requests().await.unwrap()[0].headers.get("authorization").is_none());
+        // A signature for another file is refused.
+        let bad = Found { signature: sign(&k, b"something else", "timestamp:1\tfile:x\tversion:99.0.0"), ..found };
+        assert!(download_verified_with(&s, &bad, &dir.path().join("again"), &k.pk_b64).await.is_err());
     }
 }

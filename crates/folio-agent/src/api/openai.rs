@@ -101,7 +101,7 @@ pub(super) async fn step(api: &Api, q: Quirks, run: &Run, set: &ToolSet, message
     }
     let url = format!("{}/chat/completions", api.base);
     let label = api.label();
-    let response = http::post(&run.cancel, &label, || api.authorized(api.http.post(&url)), &body, http::Errors::Api).await?;
+    let response = http::post(&run.cancel, &label, || api.authorized(api.http.post(&url)), &body).await?;
 
     let mut lines = Lines::new(response);
     let mut text = String::new();

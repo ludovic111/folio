@@ -56,7 +56,6 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 unicode-segmentation = "1"
-url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 wiremock = "0.6"
 zip = { version = "8", default-features = false, features = ["deflate"] }

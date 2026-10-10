@@ -105,17 +105,10 @@ pub async fn list(session: &Arc<Session>, kind: ProviderKind, refresh: bool) -> 
     if !refresh && let Some((at, list)) = cache().lock().get(&cache_key).cloned() && at.elapsed() < TTL {
         return list;
     }
-    let mut default_model = kind.default_model().to_string();
+    let default_model = kind.default_model().to_string();
     let http = crate::http::client();
     let fetched: Result<Vec<ModelInfo>, String> = match kind {
         ProviderKind::ClaudeCode | ProviderKind::Codex => Err(String::new()),
-        ProviderKind::Lsuite => match key.as_deref() {
-            None => Err(crate::lsuite::SIGN_IN.into()),
-            Some(token) => {
-                default_model = crate::lsuite::default_model(&folio_control::account::server(), token).await;
-                fetch(&http, kind, &base, Some(token)).await
-            }
-        },
         ProviderKind::Ollama => ollama(&http, &base).await,
         _ if kind.info().key.is_some_and(|k| k.required) && key.is_none() => Err("Add a key to see this provider's models.".into()),
         _ => fetch(&http, kind, &base, key.as_deref()).await,

@@ -21,8 +21,8 @@ crates/folio-layout   cosmic-text layout with the bundled faces: paragraphs, pag
                       PNG rasters. The window paints its glyphs, the PDF writes them: screen = print
 crates/folio-io       formats: docx, xlsx (calamine / rust_xlsxwriter), pptx, odt/ods/odp, csv, markdown, html, pdf (krilla)
 crates/folio-control  registry (commands/mod.rs lists every spec), session (autosave), permissions, bridge,
-                      discovery, account (lsuite AI), plugins host, templates, overview
-crates/folio-agent    the built-in agent (lsuite AI, Claude Code, Codex, Anthropic, OpenAI-compatible, Ollama)
+                      discovery, lsuite.rs (~/.lsuite and the server), plugins host, templates, overview
+crates/folio-agent    the built-in agent (Claude Code, Codex, Anthropic, OpenAI-compatible, Ollama)
 crates/folio-plugin   the plugin SDK (frozen repr(C) ABI, spreadsheet functions)
 crates/folio-desktop  the window (package/binary `folio`): store.rs, app.rs, views/, ui/, theme.rs, paint.rs
 crates/folio-cli      `folio-cli`;  crates/folio-mcp: `folio-mcp`
@@ -73,15 +73,17 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
       through their CLIs (best effort: nori's export command is looked up from its `app.commands`).
-- [x] lsuite AI: `account.*`, the shared `~/.lsuite/account.json`, loopback sign-in, first in the agent's
-      providers and in the first-run setup.
+- [x] **Fully free** (owner, 2026-10-10; lsuite's free-suite contract): no lsuite account, lsuite AI, Pass,
+      Cloud or Marketplace. The agent's providers are the person's own (Claude Code first and the
+      default, Codex, API keys, local servers); settings that chose the old `lsuite` provider load as
+      Claude Code (`Settings::load`); an old `~/.lsuite/account.json` is ignored, never deleted.
+      `folio_control::lsuite` has `lsuite_home()` (`LSUITE_HOME`), `server()` (`LSUITE_SERVER`, else
+      lsuite.xyz) and `open_url`.
 - [x] Design system v2, one-ink mark and icon (`scripts/gen-mark.py`).
-- [x] Signed auto-update (`update.rs`), through lsuite (DISTRIBUTION.md, 0.2.0): reads
-      `<server>/api/apps/folio/latest.json` with `Authorization: Bearer` from `~/.lsuite/account.json`
-      (`LSUITE_HOME`; server `LSUITE_ACCOUNT_SERVER`, else the account's, else lsuite.xyz); the token goes
-      only to that server (the file route's redirect drops it); signed out → `sign_in` status "Sign in to
-      lsuite (in the lsuite app) to get updates"; `FOLIO_UPDATE_URL` still overrides (no token). Tested
-      against a fake server (`update.rs` tests).
+- [x] Signed auto-update (`update.rs`), through lsuite (DISTRIBUTION.md): reads the public
+      `<server>/api/apps/folio/latest.json` (server `LSUITE_SERVER`, else lsuite.xyz) with no token
+      and no Authorization header; downloads go through the server's file route (a 302 to storage);
+      `FOLIO_UPDATE_URL` overrides the manifest. Tested against a fake server (`update.rs` tests).
 - [x] Releases: `release.yml` makes a draft; folio's suite builds come from kimchi's `suite-build.yml`
       (app=folio). `scripts/publish-build.sh <version> [<run-id>]` copies a run's Linux artifact (its Linux
       job must have succeeded; the others may be cancelled) or the draft's Linux files to

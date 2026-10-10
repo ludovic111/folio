@@ -90,18 +90,10 @@ impl RunInfo {
         (self.finished_at.unwrap_or_else(Utc::now) - self.started_at).num_milliseconds().max(0) as f64 / 1000.0
     }
 
-    /// lsuite AI's "Manage plan" address when the run stopped on a plan or allowance error.
-    pub fn manage_url(&self) -> Option<String> {
-        self.error.as_deref().and_then(crate::lsuite::manage_url)
-    }
-
     fn json(&self) -> Value {
         let mut v = json!(self);
         v["canRevert"] = json!(self.can_revert());
         v["seconds"] = json!((self.seconds() * 10.0).round() / 10.0);
-        if let Some(u) = self.manage_url() {
-            v["manageUrl"] = json!(u);
-        }
         v
     }
 }
@@ -413,10 +405,6 @@ impl Host {
             return Err("Write a request for the agent first.".into());
         }
         let config = AgentConfig::from_settings(&session.settings().agent);
-        // lsuite AI without an account: one line, and no other provider is tried.
-        if config.provider == ProviderKind::Lsuite && folio_control::account::read().is_none() {
-            return Err(crate::lsuite::SIGN_IN.into());
-        }
         let mut st = self.state.lock();
         if let Some((id, _)) = &st.active {
             let what = st.runs.iter().find(|r| r.id == *id).map(|r| format!(" (\"{}\")", crate::tools::bounded(&r.prompt, 80))).unwrap_or_default();

@@ -1,6 +1,5 @@
-//! The Agent panel, docked on the right (⌘J). lsuite AI comes first: sign in once and the agent
-//! works, nothing to install. The person's own Claude Code or Codex, an API key or a local model
-//! work too. Whatever runs it, the agent acts only through the command registry
+//! The Agent panel, docked on the right (⌘J). The agent runs on what the person brings: their own
+//! Claude Code or Codex, an API key or a local model. Whatever runs it, the agent acts only through the command registry
 //! (`folio_agent::Host`), so permissions and the one undo history are the same as for MCP and the
 //! CLI. The panel shows one card per command (the agent's own, and those of MCP clients and the
 //! CLI driving folio), how each run ended with "Revert this run", and the composer.
@@ -76,7 +75,6 @@ pub struct AgentPanel {
     changes_scroll: ScrollHandle,
     was_open: bool,
     provider_seen: String,
-    signed_in_seen: bool,
     _pump: Option<Task<()>>,
     _ticker: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -126,7 +124,6 @@ impl AgentPanel {
             changes_scroll: ScrollHandle::new(),
             was_open: false,
             provider_seen,
-            signed_in_seen: false,
             _pump: pump,
             _ticker: None,
             _subs: subs,
@@ -153,19 +150,13 @@ impl AgentPanel {
         let s = self.store.read(cx);
         let open = s.agent_open;
         let provider = s.settings.agent.provider.clone();
-        let signed_in = s.account["signedIn"] == true;
-        let recheck = !self.was_open || provider != self.provider_seen || signed_in != self.signed_in_seen;
+        let recheck = !self.was_open || provider != self.provider_seen;
         if open && recheck {
             self.refresh_statuses(cx);
             self.refresh_history(cx);
         }
-        if open && !self.was_open {
-            // The plan and the allowance change on the server.
-            self.store.update(cx, |s, cx| s.refresh_account(cx));
-        }
         self.was_open = open;
         self.provider_seen = provider;
-        self.signed_in_seen = signed_in;
         cx.notify();
     }
 
@@ -175,7 +166,7 @@ impl AgentPanel {
         }
         self.checking = true;
         let session = self.store.read(cx).session.clone();
-        // Probes the CLIs, the local servers and lsuite: never on the UI thread.
+        // Probes the CLIs and the local servers: never on the UI thread.
         let task = gpui_tokio::Tokio::spawn(cx, async move { folio_agent::provider_status(&session).await });
         cx.spawn(async move |this, cx| {
             let r = task.await;
@@ -227,10 +218,6 @@ impl AgentPanel {
         if ended {
             self._ticker = None;
             self.refresh_history(cx);
-            // A run spends allowance: the summary changes.
-            if self.provider(cx) == ProviderKind::Lsuite {
-                self.store.update(cx, |s, cx| s.refresh_account(cx));
-            }
         }
         if started {
             // Keeps the elapsed time moving while the model thinks.
@@ -302,10 +289,6 @@ impl AgentPanel {
         cx.store().update(cx, |s, cx| s.open_dialog(Dialog::Settings { section: Some("agent".into()) }, cx));
     }
 
-    fn sign_in(cx: &mut App) {
-        cx.store().update(cx, |s, cx| s.run_then("account.signIn", json!({}), cx, |s, _, cx| s.flash("Finish signing in in your browser.", cx)));
-    }
-
     fn provider_menu(&mut self, position: gpui::Point<gpui::Pixels>, cx: &mut Context<Self>) {
         let current = self.provider(cx);
         let this = cx.entity().downgrade();
@@ -320,7 +303,6 @@ impl AgentPanel {
                     cx.store().update(cx, |s, cx| s.run("agent.setProvider", json!({ "provider": kind.id() }), cx));
                 })
                 .shortcut(match (kind, ready) {
-                    (ProviderKind::Lsuite, Some(false)) => "sign in",
                     (_, Some(true)) => "ready",
                     (_, Some(false)) => "set up",
                     (_, None) => "…",
@@ -399,71 +381,13 @@ impl AgentPanel {
             )
     }
 
-    /// lsuite AI's account strip: the plan and the allowance with Manage plan and Sign out, or
-    /// Sign in.
-    fn lsuite_strip(&self, cx: &mut Context<Self>) -> AnyElement {
-        let t = cx.theme().clone();
-        let acc = self.store.read(cx).account.clone();
-        let signed = acc["signedIn"] == true;
-        let manage = acc["manageUrl"].as_str().unwrap_or("https://lsuite.xyz/account").to_string();
-        let status = self.status_of(ProviderKind::Lsuite);
-        let free = signed && acc["plan"].as_str().is_none_or(|p| p == "free" || p.is_empty()) && acc["offline"] != true;
-        let line = if signed {
-            acc["summary"].as_str().or(acc["plan"].as_str()).filter(|s| !s.is_empty()).unwrap_or("Signed in").to_string()
-        } else {
-            "No setup. Sign in and your agent works.".to_string()
-        };
-        div()
-            .flex()
-            .flex_none()
-            .flex_col()
-            .gap(px(8.))
-            .p(px(12.))
-            .border_b_1()
-            .border_color(t.line)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(10.))
-                    .child(logo("lsuite", px(26.)))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .flex()
-                            .flex_col()
-                            .gap(px(1.))
-                            .child(div().truncate().text_size(px(sz::BASE)).font_weight(FontWeight::SEMIBOLD).child(if signed { acc["email"].as_str().unwrap_or("lsuite AI").to_string() } else { "lsuite AI".into() }))
-                            .child(div().truncate().font_family(MONO).text_size(px(sz::XS)).text_color(t.text_2).child(if signed { line.to_uppercase() } else { line })),
-                    ),
-            )
-            .when(free, |d| d.child(div().text_size(px(sz::SM)).text_color(t.text_2).child("Your account is on Free: lsuite AI needs a plan. Bringing your own provider stays free.")))
-            .when(acc["offline"] == true, |d| d.child(div().text_size(px(sz::SM)).text_color(t.text_2).child(format!("lsuite didn't answer: {}", acc["error"].as_str().unwrap_or("")))))
-            .when(signed && status.is_some_and(|s| !s.ready) && !free, |d| d.child(div().text_size(px(sz::SM)).text_color(t.text_2).child(status.map(|s| s.message.clone()).unwrap_or_default())))
-            .child(if signed {
-                let m = manage.clone();
-                div()
-                    .flex()
-                    .gap(px(6.))
-                    .child(Button::new("agent-manage", "Manage plan").small().with_icon("external-link").when(free, |b| b.primary()).on_click(move |_, _, _| folio_control::account::open_url(&m)))
-                    .child(Button::new("agent-signout", "Sign out").small().ghost().with_icon("log-out").on_click(|_, _, cx| cx.store().update(cx, |s, cx| s.run("account.signOut", json!({}), cx))))
-                    .into_any_element()
-            } else {
-                div().flex().gap(px(6.)).child(Button::new("agent-signin", "Sign in").small().primary().with_icon("log-in").on_click(|_, _, cx| Self::sign_in(cx))).into_any_element()
-            })
-            .into_any_element()
-    }
-
-    /// When the chosen provider (other than lsuite AI) can't run, or agents are off: why, and what to do.
+    /// When the chosen provider can't run, or agents are off: why, and what to do.
     fn notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let t = cx.theme().clone();
         let s = self.store.read(cx);
         let kind = self.provider(cx);
         let (text, action) = if !s.settings.agent.permissions.enabled {
             ("Agents are turned off: the agent, MCP clients and folio-cli --agent are refused.".to_string(), None)
-        } else if kind == ProviderKind::Lsuite {
-            return None;
         } else {
             let st = self.status_of(kind).filter(|st| !st.ready)?;
             (st.message.clone(), st.action.clone())
@@ -490,7 +414,7 @@ impl AgentPanel {
                         .flex()
                         .flex_wrap()
                         .gap(px(6.))
-                        .when_some(link, |d, url| d.child(Button::new("notice-link", label.clone()).small().with_icon("external-link").on_click(move |_, _, _| folio_control::account::open_url(&url))))
+                        .when_some(link, |d, url| d.child(Button::new("notice-link", label.clone()).small().with_icon("external-link").on_click(move |_, _, _| folio_control::lsuite::open_url(&url))))
                         .when_some(copy, |d, command| {
                             d.child(Button::new("notice-copy", label.clone()).small().with_icon("copy").on_click(move |_, _, cx| {
                                 cx.write_to_clipboard(gpui::ClipboardItem::new_string(command.clone()));
@@ -713,8 +637,6 @@ impl AgentPanel {
             RunState::Error => ("circle-alert", t.danger, "Stopped on an error".into()),
             RunState::Cancelled => ("circle-stop", t.text_2, if changes > 0 { "Stopped; finished edits stay".into() } else { "Stopped".into() }),
         };
-        let manage = error.and_then(folio_agent::lsuite::manage_url);
-        let sign_in = error.is_some_and(|e| e == folio_agent::lsuite::SIGN_IN || e.starts_with("Sign in to lsuite AI"));
         div()
             .id(("outcome", i))
             .flex()
@@ -743,15 +665,6 @@ impl AgentPanel {
                     .when(reverted, |d| d.child(div().flex_none().text_size(px(sz::XS)).text_color(t.text_2).child("Reverted"))),
             )
             .when_some(error.map(str::to_string), |d, m| d.child(div().text_size(px(sz::SM)).text_color(t.text).child(m)))
-            .when(manage.is_some() || sign_in, |d| {
-                d.child(
-                    div()
-                        .flex()
-                        .gap(px(6.))
-                        .when_some(manage, |d, url| d.child(Button::new(("outcome-manage", i), "Manage plan").small().primary().with_icon("external-link").on_click(move |_, _, _| folio_control::account::open_url(&url))))
-                        .when(sign_in, |d| d.child(Button::new(("outcome-signin", i), "Sign in").small().primary().with_icon("log-in").on_click(|_, _, cx| Self::sign_in(cx)))),
-                )
-            })
             .into_any_element()
     }
 
@@ -1014,7 +927,6 @@ impl Render for AgentPanel {
                 div().p(px(14.)).text_size(px(sz::SM)).text_color(t.text_2).child("The built-in agent isn't running in this window. folio-mcp and folio-cli still work."),
             );
         }
-        let lsuite = (self.provider(cx) == ProviderKind::Lsuite).then(|| self.lsuite_strip(cx));
         let notice = self.notice(cx);
         let agent_steps = self.history.as_ref().map(|h| h.undo.iter().filter(|s| s.source != "window").count()).unwrap_or(0);
         let this = cx.entity().downgrade();
@@ -1050,7 +962,6 @@ impl Render for AgentPanel {
             .border_color(t.line)
             .text_size(px(sz::BASE))
             .child(header)
-            .children(lsuite)
             .children(notice)
             .when_some(self.snap.storage_error.clone(), |d, e| d.child(div().flex_none().px(px(12.)).pt(px(8.)).text_size(px(sz::XS)).text_color(t.text_2).child(e)))
             .child(div().flex_none().px(px(12.)).pt(px(10.)).child(tabs))

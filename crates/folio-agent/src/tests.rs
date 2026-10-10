@@ -9,7 +9,7 @@ use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 use crate::*;
 
-/// Every test runs with its own lsuite home (never the person's account), set once before any
+/// Every test runs with its own lsuite home (never the person's plugins), set once before any
 /// session exists.
 fn lsuite_home() -> &'static std::path::Path {
     static HOME: OnceLock<tempfile::TempDir> = OnceLock::new();
@@ -18,36 +18,10 @@ fn lsuite_home() -> &'static std::path::Path {
         // SAFETY: set once, before any test thread reads it (every test starts by calling this).
         unsafe {
             std::env::set_var("LSUITE_HOME", dir.path());
-            std::env::remove_var("LSUITE_ACCOUNT_SERVER");
         }
         dir
     })
     .path()
-}
-
-/// lsuite tests write and remove the one account file: one at a time.
-async fn account_lock() -> tokio::sync::MutexGuard<'static, ()> {
-    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(Default::default).lock().await
-}
-
-fn sign_in(server: &str, token: &str) {
-    lsuite_home();
-    folio_control::account::write(&folio_control::account::AccountFile {
-        format: 1,
-        server: server.into(),
-        email: "ada@example.com".into(),
-        name: "Ada".into(),
-        plan: "pro".into(),
-        token: token.into(),
-        signed_in_at: chrono::Utc::now(),
-    })
-    .unwrap();
-}
-
-fn sign_out() {
-    lsuite_home();
-    let _ = std::fs::remove_file(folio_control::account::path());
 }
 
 fn session(dir: &std::path::Path) -> Arc<Session> {
@@ -327,7 +301,7 @@ async fn missing_keys_and_disabled_agents_are_explained() {
 fn tools_cover_the_registry_except_person_only_commands() {
     let defs = tool_defs();
     assert!(defs.iter().any(|t| t.name == "file_overview"));
-    assert!(defs.iter().all(|t| t.name != "app_setAgentKey" && t.name != "account_signIn" && !t.name.starts_with("agent_")));
+    assert!(defs.iter().all(|t| t.name != "app_setAgentKey" && !t.name.starts_with("agent_")));
     let mut names: Vec<&str> = defs.iter().map(|t| t.name.as_str()).collect();
     names.sort();
     names.dedup();
@@ -369,19 +343,22 @@ fn tools_lists() -> Vec<&'static str> {
 #[test]
 fn settings_choose_the_provider() {
     let mut a = folio_control::settings::AgentSettings::default();
-    assert_eq!(AgentConfig::from_settings(&a).provider, ProviderKind::Lsuite, "lsuite AI is the default");
+    assert_eq!(AgentConfig::from_settings(&a).provider, ProviderKind::ClaudeCode, "Claude Code is the default");
     a.provider = "anthropic".into();
     let c = AgentConfig::from_settings(&a);
     assert_eq!((c.provider, c.model(), c.base_url()), (ProviderKind::Anthropic, "claude-sonnet-5-5".to_string(), "https://api.anthropic.com".to_string()));
     a.provider = "ollama".into();
     a.base_url = "http://box:11434/".into();
     assert_eq!(AgentConfig::from_settings(&a).base_url(), "http://box:11434");
-    a.provider = "nonsense".into();
-    assert_eq!(AgentConfig::from_settings(&a).provider, ProviderKind::Lsuite);
+    // An unknown id, or the lsuite AI of older versions: the default.
+    for old in ["nonsense", "lsuite"] {
+        a.provider = old.into();
+        assert_eq!(AgentConfig::from_settings(&a).provider, ProviderKind::ClaudeCode);
+    }
     assert_eq!(serde_json::to_value(ProviderKind::OpenAi).unwrap(), "openai");
     assert_eq!(ProviderKind::parse("Google"), Some(ProviderKind::Gemini));
     assert_eq!(ProviderKind::parse("lm studio"), Some(ProviderKind::LmStudio));
-    assert_eq!(ProviderKind::parse("lsuite ai"), Some(ProviderKind::Lsuite));
+    assert_eq!(ProviderKind::parse("lsuite ai"), None);
     // The keys the agent reads are the ones app.setAgentKey saves.
     for kind in ProviderKind::ALL {
         if let Some(k) = kind.info().key.filter(|k| k.required) {
@@ -556,7 +533,7 @@ async fn provider_status_says_what_is_usable() {
     s.set_secret("openai", Some("sk-test")).unwrap();
     let all = provider_status(&s).await;
     assert_eq!(all.len(), ProviderKind::ALL.len());
-    assert_eq!(all[0].provider, ProviderKind::Lsuite, "lsuite AI comes first");
+    assert_eq!(all[0].provider, ProviderKind::ClaudeCode, "the person's own Claude Code comes first");
     let get = |k| all.iter().find(|p| p.provider == k).unwrap();
     let ollama = get(ProviderKind::Ollama);
     assert!(ollama.ready && ollama.active, "{ollama:?}");
@@ -690,7 +667,7 @@ async fn one_run_at_a_time_and_permissions_hold() {
     assert_eq!((v["provider"].as_str(), v["model"].as_str(), v["baseUrl"].as_str()), (Some("codex"), Some(""), Some("")), "{v}");
     assert!(v["ready"].is_boolean() && v["message"].is_string(), "{v}");
     let e = folio_control::call(&s, Source::Cli, "agent.setProvider", json!({ "provider": "mistrall" })).await.unwrap_err();
-    assert!(e.contains("Did you mean mistral?") && e.contains("lsuite, claude-code"), "{e}");
+    assert!(e.contains("Did you mean mistral?") && e.contains("claude-code, codex"), "{e}");
 }
 
 /// Another file has its own conversation: a run going on is stopped, and coming back shows the
@@ -836,114 +813,6 @@ async fn gemini_replays_its_parts_with_their_signatures() {
     assert_eq!(contents[2]["parts"][0]["functionResponse"]["id"], "fc1");
 }
 
-// ---- lsuite AI ------------------------------------------------------------------
-
-/// A stand-in lsuite server: `GET /api/account/me` (Pro, opus by default) and the messages API.
-async fn lsuite_server(replies: Vec<(u16, String)>) -> MockServer {
-    struct Replies(Vec<(u16, String)>, AtomicUsize);
-    impl Respond for Replies {
-        fn respond(&self, _: &Request) -> ResponseTemplate {
-            let i = self.1.fetch_add(1, Ordering::SeqCst).min(self.0.len() - 1);
-            let (status, body) = &self.0[i];
-            ResponseTemplate::new(*status).insert_header("content-type", if *status == 200 { "text/event-stream" } else { "application/json" }).set_body_string(body.clone())
-        }
-    }
-    let server = MockServer::start().await;
-    let me = json!({
-        "email": "ada@example.com", "name": "Ada", "plan": "pro", "planName": "Pro", "status": "active", "demo": true,
-        "usage": { "used": 1520, "limit": 4000, "percent": 38, "resetsAt": "2026-11-01T00:00:00.000Z" },
-        "models": ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5"], "defaultModel": "claude-opus-5-5",
-        "manageUrl": format!("{}/account", server.uri()),
-    });
-    Mock::given(method("GET")).and(path("/api/account/me")).respond_with(ResponseTemplate::new(200).set_body_json(me)).mount(&server).await;
-    Mock::given(method("POST")).and(path("/api/ai/v1/messages")).respond_with(Replies(replies, AtomicUsize::new(0))).mount(&server).await;
-    server
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn lsuite_ai_streams_a_reply_with_the_account_token() {
-    let _lock = account_lock().await;
-    let demo = "This is the lsuite AI demo. No model is connected to this server yet, so this answer is canned.";
-    let server = lsuite_server(vec![(200, anthropic_text(demo))]).await;
-    sign_in(&server.uri(), "lsk_test_token_123");
-    let dir = tempfile::tempdir().unwrap();
-    let s = with_sheet(dir.path()).await;
-    // The settings default: nothing to choose.
-    assert_eq!(AgentConfig::from_settings(&s.settings().agent).provider, ProviderKind::Lsuite);
-    let status = status_of(&s, ProviderKind::Lsuite).await;
-    assert!(status.ready, "{status:?}");
-    assert_eq!(status.summary.as_deref(), Some("Pro · 38 % used · resets 1 Nov"));
-    assert_eq!(status.default_model, "claude-opus-5-5");
-
-    let mut run = Agent::start(&s, AgentConfig::new(ProviderKind::Lsuite), "Hello", Conversation::new());
-    let events = collect(&mut run).await;
-    assert!(matches!(events.last(), Some(AgentEvent::Done { summary, .. }) if summary == demo), "{events:#?}");
-    let text: String = events.iter().filter_map(|e| if let AgentEvent::Text { delta } = e { Some(delta.as_str()) } else { None }).collect();
-    assert_eq!(text, demo);
-    let requests: Vec<Request> = server.received_requests().await.unwrap().into_iter().filter(|r| r.url.path() == "/api/ai/v1/messages").collect();
-    assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].headers.get("x-api-key").unwrap(), "lsk_test_token_123");
-    assert_eq!(requests[0].headers.get("authorization").unwrap(), "Bearer lsk_test_token_123");
-    let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
-    assert_eq!(body["model"], "claude-opus-5-5", "the plan's default model");
-    assert_eq!(body["stream"], true);
-    assert!(body.get("cache_control").is_none());
-    sign_out();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn lsuite_ai_errors_are_one_line_with_manage_plan() {
-    let _lock = account_lock().await;
-    let exhausted = json!({ "type": "error", "error": {
-        "type": "allowance_exhausted",
-        "message": "Your lsuite AI allowance for this month is used up (Pro, 4,000 credits). It resets on 1 Nov. Manage plan: http://lsuite.test/account",
-        "manage_url": "http://lsuite.test/account", "plan": "pro", "resets_at": "2026-11-01T00:00:00.000Z", "used": 4000, "limit": 4000,
-    } });
-    let server = lsuite_server(vec![(402, exhausted.to_string())]).await;
-    sign_in(&server.uri(), "lsk_spent");
-    let dir = tempfile::tempdir().unwrap();
-    let s = with_sheet(dir.path()).await;
-    s.set_secret("anthropic", Some("sk-ant-would-work")).unwrap();
-    let mut run = Agent::start(&s, AgentConfig { model: "claude-sonnet-5-5".into(), ..AgentConfig::new(ProviderKind::Lsuite) }, "Hello", Conversation::new());
-    let events = collect(&mut run).await;
-    let Some(AgentEvent::Error { message, .. }) = events.last() else { panic!("{events:#?}") };
-    assert!(message.starts_with("Your lsuite AI allowance for this month is used up"), "{message}");
-    assert!(!message.contains('\n'), "one line: {message}");
-    assert_eq!(message.matches("Manage plan:").count(), 1, "{message}");
-    assert_eq!(lsuite::manage_url(message).as_deref(), Some("http://lsuite.test/account"));
-    // Not retried, and never handed to another provider.
-    let asked = server.received_requests().await.unwrap().into_iter().filter(|r| r.url.path() == "/api/ai/v1/messages").count();
-    assert_eq!(asked, 1);
-
-    // A plan error the same way.
-    let server = lsuite_server(vec![(403, json!({ "type": "error", "error": { "type": "model_not_in_plan", "message": "Claude Fable isn't in the Pro plan.", "manage_url": "http://lsuite.test/account" } }).to_string())]).await;
-    sign_in(&server.uri(), "lsk_pro");
-    let mut run = Agent::start(&s, AgentConfig { model: "claude-fable-5-1".into(), ..AgentConfig::new(ProviderKind::Lsuite) }, "Hello", Conversation::new());
-    let events = collect(&mut run).await;
-    assert!(matches!(events.last(), Some(AgentEvent::Error { message, .. }) if message == "Claude Fable isn't in the Pro plan. Manage plan: http://lsuite.test/account"), "{events:#?}");
-    sign_out();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn without_an_account_lsuite_ai_asks_to_sign_in() {
-    use futures::StreamExt;
-    let _lock = account_lock().await;
-    sign_out();
-    let dir = tempfile::tempdir().unwrap();
-    let s = with_sheet(dir.path()).await;
-    let mut calls = s.attach_ui();
-    tokio::spawn(async move { while calls.next().await.is_some() {} });
-    let host = Host::install(&s);
-    let status = status_of(&s, ProviderKind::Lsuite).await;
-    assert!(!status.ready);
-    assert_eq!(status.message, lsuite::SIGN_IN);
-    assert_eq!(status.next, Some(Next::Account));
-    assert_eq!(status.action.as_ref().and_then(|a| a.folio.as_deref()), Some("account.signIn"));
-    let e = folio_control::call(&s, Source::Window, "agent.send", json!({ "prompt": "Hello" })).await.unwrap_err();
-    assert_eq!(e, lsuite::SIGN_IN);
-    assert!(host.snapshot().runs.is_empty(), "nothing ran, nothing else was tried");
-}
-
 // ---- what the person sees ----------------------------------------------------------
 
 #[test]
@@ -970,29 +839,6 @@ async fn the_agent_is_told_what_the_person_sees() {
     assert!(g.short.ends_with("· B2:D9"), "{}", g.short);
     folio_control::call(&s, Source::Window, "file.close", json!({})).await.unwrap();
     assert_eq!(glance(&s).short, "No file open");
-}
-
-/// A real turn against a running lsuite server (its demo answers without an Anthropic key):
-/// `FOLIO_TEST_LSUITE_SERVER=http://127.0.0.1:4335 FOLIO_TEST_LSUITE_KEY=lsk_… lcargo test -p folio-agent -- --ignored live_lsuite`.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "needs a running lsuite server and a key from its account page"]
-async fn live_lsuite_demo_turn() {
-    let _lock = account_lock().await;
-    let server = std::env::var("FOLIO_TEST_LSUITE_SERVER").expect("FOLIO_TEST_LSUITE_SERVER");
-    let key = std::env::var("FOLIO_TEST_LSUITE_KEY").expect("FOLIO_TEST_LSUITE_KEY");
-    sign_in(&server, &key);
-    let dir = tempfile::tempdir().unwrap();
-    let s = with_sheet(dir.path()).await;
-    let status = status_of(&s, ProviderKind::Lsuite).await;
-    eprintln!("status: {}", serde_json::to_string(&status).unwrap());
-    assert!(status.ready, "{status:?}");
-    let mut run = Agent::start(&s, AgentConfig::new(ProviderKind::Lsuite), "Say hello.", Conversation::new());
-    let events = collect(&mut run).await;
-    let reply: String = events.iter().filter_map(|e| if let AgentEvent::Text { delta } = e { Some(delta.as_str()) } else { None }).collect();
-    eprintln!("reply: {reply}");
-    eprintln!("end: {}", serde_json::to_string(events.last().unwrap()).unwrap());
-    assert!(matches!(events.last(), Some(AgentEvent::Done { summary, .. }) if summary == &reply && !reply.is_empty()), "{events:#?}");
-    sign_out();
 }
 
 // ---- the harness: pictures and the live context ---------------------------------------------

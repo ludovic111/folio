@@ -68,7 +68,7 @@ pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Messag
         "options": { "num_ctx": 16_384 },
     });
     let url = format!("{}/api/chat", api.base);
-    let response = http::post(&run.cancel, &format!("Ollama at {}", api.base), || api.http.post(&url), &body, http::Errors::Api).await?;
+    let response = http::post(&run.cancel, &format!("Ollama at {}", api.base), || api.http.post(&url), &body).await?;
     let mut lines = Lines::new(response);
     let mut text = String::new();
     let mut calls: Vec<(String, String, Result<Value, String>)> = vec![];

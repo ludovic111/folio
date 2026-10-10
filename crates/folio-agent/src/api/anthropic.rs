@@ -1,6 +1,4 @@
-//! Anthropic Messages API: streamed text and tool use over server-sent events. lsuite AI speaks
-//! it too (its server forwards to Anthropic), with the account's token as the key and its own
-//! error lines.
+//! Anthropic Messages API: streamed text and tool use over server-sent events.
 //!
 //! Thinking blocks (on by default on current models) are kept verbatim as
 //! [`Part::Opaque`] and replayed unchanged, as the API requires within a tool
@@ -93,20 +91,7 @@ pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Messag
     }
     let key = api.key.clone().unwrap_or_default();
     let url = format!("{}/v1/messages", api.base);
-    let lsuite = api.kind == ProviderKind::Lsuite;
-    let (label, errors) = if lsuite { ("lsuite AI", http::Errors::Lsuite) } else { ("the Anthropic API", http::Errors::Api) };
-    let response = http::post(
-        &run.cancel,
-        label,
-        || {
-            let r = api.http.post(&url).header("x-api-key", &key).header("anthropic-version", VERSION);
-            // lsuite takes the token either way; both are sent so a proxy in between keeps one.
-            if lsuite { r.bearer_auth(&key) } else { r }
-        },
-        &body,
-        errors,
-    )
-    .await?;
+    let response = http::post(&run.cancel, "the Anthropic API", || api.http.post(&url).header("x-api-key", &key).header("anthropic-version", VERSION), &body).await?;
 
     let mut lines = Lines::new(response);
     let mut blocks: Vec<Block> = vec![];
@@ -170,7 +155,6 @@ pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Messag
                 completed = true;
                 break;
             }
-            "error" if lsuite => return Err(crate::lsuite::error_line(200, &data)),
             "error" => {
                 return Err(format!("Anthropic API error: {}", event["error"]["message"].as_str().unwrap_or("unknown")));
             }
@@ -179,7 +163,7 @@ pub(super) async fn step(api: &Api, run: &Run, set: &ToolSet, messages: &[Messag
     }
     run.usage(input_tokens, output_tokens);
     if !completed {
-        return Err(format!("The {} response stopped before it was complete. Try again.", if lsuite { "lsuite AI" } else { "Anthropic" }));
+        return Err("The Anthropic response stopped before it was complete. Try again.".into());
     }
     match stop_reason.as_str() {
         "max_tokens" => return Err("The reply reached its length limit; no unfinished command was run. Ask for less at a time.".into()),

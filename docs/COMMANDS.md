@@ -1187,33 +1187,6 @@ Bring a picture from another lsuite app into the open file through its CLI: nori
 | `slide` | string |  | Slide: its id, or its 1-based number. Defaults to the slide the window shows, else the first. |
 | `after` | any |  | Put it after this block (index from doc.read, or id); -1 puts it first. Default: after the caret's block in the window, else at the end. |
 
-## account
-
-### `account.status`
-
-lsuite AI: whether this computer is signed in (shared by every lsuite app), the account's email, plan, allowance used and when it resets, and the models in the plan. _(read only)_
-
-| Parameter | Type | | Description |
-| --- | --- | --- | --- |
-| `refresh` | boolean |  | Ask the server again now. |
-
-### `account.signIn`
-
-Sign in to lsuite AI: opens the browser to connect folio (the account is shared by every lsuite app), or takes a key from the account page (lsk_…). _(changes things · person only)_
-
-| Parameter | Type | | Description |
-| --- | --- | --- | --- |
-| `key` | string |  | A key from lsuite.xyz/account, for headless sign-in. |
-| `wait` | boolean |  | Wait for the browser sign-in to finish (default false). |
-
-### `account.signOut`
-
-Sign out of lsuite AI on this computer (every lsuite app). _(changes things · person only)_
-
-### `account.plans`
-
-lsuite AI plans with prices, models and monthly allowances (from the server). _(read only)_
-
 ## plugin
 
 ### `plugin.list`
@@ -1311,7 +1284,7 @@ Bundle a built plugin crate and install it: its functions work at once. _(change
 
 ### `agent.providers`
 
-What can run the built-in agent: lsuite AI (no setup), coding CLIs on this computer (Claude Code, Codex), model APIs (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral) and local servers (Ollama, LM Studio); whether each is ready and what to do next. _(read only · needs the window)_
+What can run the built-in agent: coding CLIs on this computer (Claude Code, Codex), model APIs (Anthropic, OpenAI, OpenRouter, Google Gemini, Mistral) and local servers (Ollama, LM Studio); whether each is ready and what to do next. _(read only · needs the window)_
 
 | Parameter | Type | | Description |
 | --- | --- | --- | --- |
@@ -1430,7 +1403,7 @@ Save (or with no key, remove) an API key the built-in agent uses, in the OS keyc
 
 ### `app.onboarding`
 
-The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), the agent providers found on this computer and lsuite AI. _(read only)_
+The first-run setup: whether it was done, the suites a person may come from (with the formats folio opens from each), and the agent providers found on this computer. _(read only)_
 
 ### `app.finishOnboarding`
 
@@ -1445,7 +1418,7 @@ Finish (or skip) the first-run setup with the choices made. _(changes things)_
 
 ### `app.checkUpdates`
 
-Ask lsuite (with the lsuite account signed in on this computer) whether a newer folio is out, and say how to get it. Signed out, it says to sign in in the lsuite app. _(read only)_
+Ask lsuite whether a newer folio is out, and say how to get it. _(read only)_
 
 ### `app.updateStatus`
 
@@ -1493,7 +1466,7 @@ Select in the window: text from..to on a document page, a range of cells, or sha
 
 ### `ui.panel`
 
-Open or close a panel or dialog: agent, inspector, pages, settings, export, open, plugins, account, palette, shortcuts, onboarding; or home. _(changes things · needs the window)_
+Open or close a panel or dialog: agent, inspector, pages, settings, export, open, plugins, palette, shortcuts, onboarding; or home. _(changes things · needs the window)_
 
 | Parameter | Type | | Description |
 | --- | --- | --- | --- |

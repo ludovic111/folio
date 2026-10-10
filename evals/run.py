@@ -11,7 +11,7 @@ agent with a real model, each scored by automatic checks on the resulting .folio
     python3 evals/run.py --score DIR             score the files of an earlier run again
 
 Each job runs `folio-cli --file <job>.folio agent "<request>"` in a scratch home (its own data,
-config and lsuite folders), so the person's settings, files and account are never touched; the
+config and lsuite folders), so the person's settings, files and plugins are never touched; the
 Claude Code provider uses the `claude` already signed in on this computer, so no key is needed.
 Results go to evals/results/<run>/ (the .folio files, the agent's answers, the scores) and a
 summary line per job is added to evals/RESULTS.md. Run them before each release: a harness change
@@ -112,7 +112,6 @@ def main() -> int:
     cli = Path(args.cli).resolve() if args.cli else ROOT / "target" / args.profile / "folio-cli"
     if not args.no_build and not args.cli:
         cli = build(args.profile)
-    keep_account = args.provider in ("lsuite", "lsuite-ai")
 
     if args.score:
         base = Path(args.score).resolve()
@@ -129,7 +128,7 @@ def main() -> int:
     for job in chosen:
         out = base / job.name
         out.mkdir(exist_ok=True)
-        env = env_for(out / "home", keep_account)
+        env = env_for(out / "home")
         f = Folio(cli, out / f"{job.name}.folio", env)
         if args.score:
             answer = json.loads((out / "agent.json").read_text()) if (out / "agent.json").exists() else {}
