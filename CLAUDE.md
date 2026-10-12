@@ -68,14 +68,14 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
 
 - **Linux and macOS** (owner, 2026-10-10; the beta was Linux only from 2026-10-08): Windows is "coming
   soon" (its code and script stay; its matrix lines are commented out). macOS (Apple Silicon and Intel,
-  the Intel one cross-compiled) builds on the Mac mini, a self-hosted runner (labels `self-hosted, macOS,
-  ARM64, ludovics-mac-mini`; `runs-on: vars.MAC_RUNNER || 'ludovics-mac-mini'`, `MAC_RUNNER=macos-latest`
-  sends it back to GitHub): CI's macOS job only on `workflow_dispatch`, release.yml's two macOS rows.
-  The runner is the owner's own account: no global git config, nothing in `~/.ssh`, the login keychain
+  the Intel one cross-compiled) builds on the maintainer's self-hosted Mac runner (labels `self-hosted, macOS,
+  ARM64` plus the machine's own; `runs-on: vars.MAC_RUNNER`, else the default in the workflow;
+  `MAC_RUNNER=macos-latest` sends it back to GitHub): CI's macOS job only on `workflow_dispatch`, release.yml's two macOS rows.
+  The runner runs as the maintainer's own account: no global git config, nothing in `~/.ssh`, the login keychain
   untouched (`prepare-apple-signing.sh` saves the keychain search list in `$RUNNER_TEMP`, the cleanup
   step restores it and deletes the throwaway keychain); rust-cache and apt only on GitHub's machines.
-  Linux is verified with `~/fleet/rbuild -- env LIBRARY_PATH=/run/current-system/sw/share/nix-ld/lib
-  cargo …` while ludodesktop's runner is offline. latest.json lists linux-x86_64, darwin-aarch64 and
+  When the self-hosted Linux runner is offline, verify Linux on another Linux machine
+  (`cargo test --workspace`, `cargo clippy … -D warnings`). latest.json lists linux-x86_64, darwin-aarch64 and
   darwin-x86_64.
 - [x] Command registry, one undo history, `file.overview`; CLI and MCP (`--live`, `--file`).
 - [x] Discovery: `~/.lsuite/apps/folio.json`, kind `office`; hand-offs: `handoff.image` from nori and kimchi
@@ -120,11 +120,13 @@ is lsuite.xyz/folio. Contract: `../lsuite/STANDARD.md`, `PLUGINS.md`, `AI.md`, `
       can't show the window itself on Linux (`ui.screenshot` is macOS only); no named ranges (the brief
       says so); `default printed page` for a look is page 1, not the caret's page.
 
-## Verified local beta (2026-10-07)
+## Release state (0.3.0, 2026-10-11)
 
-App names are always lowercase in UI and documentation. Apple silicon bundles were built on
-macmini under `~/builds/lsuite-2026-10-07/` and smoke-tested through their bundled CLIs. These
-are local ad-hoc-signed builds; public release, notarization and signed in-place updates remain
-separate release work. Linux workspace tests and clippy passed (existing warnings remain).
+App names are always lowercase in UI and documentation. 0.3.0 is published to lsuite-builds for
+Linux (AppImage, .deb) and macOS (Apple Silicon and Intel `.dmg`, signed with the Developer ID
+and notarized, plus the updater's `.app.tar.gz`), with `latest.json` and `SHA256SUMS`.
 Office/OpenDocument round trips preserve list kinds, page margins, sheet chart geometry,
-editable slide tables and local text colours. The embedded mark is folio's generated f.
+editable slide tables and local text colours.
+
+Not done yet: Windows builds (code and script stay); named ranges (a formula that uses one gives
+`#NAME?`; ODS import warns); a picture of the window (`ui.screenshot`) on Linux.
