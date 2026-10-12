@@ -2,8 +2,8 @@ name: Release
 
 # Builds folio for Linux and macOS (Apple Silicon and Intel) with the scripts in scripts/ and
 # attaches everything to a draft GitHub release. Windows is coming soon (its script and matrix entry
-# stay, commented out below). The macOS builds run on the Mac mini (a self-hosted runner;
-# MAC_RUNNER=macos-latest sends them back to GitHub). The draft is never published here:
+# stay, commented out below). The macOS builds run on a self-hosted Mac runner
+# (MAC_RUNNER=macos-latest sends them back to GitHub). The draft is never published here:
 # `scripts/publish-build.sh <version>` copies it to ludovic111/lsuite-builds (lsuite's
 # DISTRIBUTION.md), where the lsuite app and folio's updater get it, and deletes the draft.
 #
@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Both macOS builds on the Mac mini (Apple Silicon); the Intel one is cross-compiled.
+          # Both macOS builds on the self-hosted Mac (Apple Silicon); the Intel one is cross-compiled.
           - { name: macOS (Apple Silicon), os: mac, target: aarch64-apple-darwin, script: bundle-macos.sh }
           - { name: macOS (Intel), os: mac, target: x86_64-apple-darwin, script: bundle-macos.sh }
           # Coming soon:
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # On the Mac mini, keep target/ between runs (incremental builds).
+          # On the self-hosted Mac, keep target/ between runs (incremental builds).
           clean: ${{ runner.environment == 'github-hosted' }}
 
       # A self-hosted runner keeps target/ between jobs: no other target's packages may be uploaded.
@@ -121,7 +121,7 @@ jobs:
             target/release/folio-release verify "$file" --version "$version"
           done
 
-      # The Mac mini runs as its owner's account: delete the throwaway keychain and put the user's
+      # The self-hosted Mac runs as its owner's account: delete the throwaway keychain and put the user's
       # keychain search list back exactly as prepare-apple-signing.sh found it.
       - name: Remove signing keychain
         if: always() && runner.os == 'macOS'
